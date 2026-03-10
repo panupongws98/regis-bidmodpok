@@ -1,0 +1,226 @@
+﻿<!DOCTYPE html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Drag Bike Registration Desk</title>
+    <link rel="stylesheet" href="/styles.css?v=20260310-bracket-editor-v2" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">LOCAL WEB APP</p>
+          <h1>ระบบบันทึกผู้สมัครแข่งขันแด็กไบค์</h1>
+          <p class="hero-copy">
+            ใช้สำหรับลงทะเบียน จัดเก็บข้อมูล ตรวจสอบหมายเลขรถ และสั่งพิมพ์ใบสมัครหรือรายการสรุปได้จากเครื่องนี้โดยตรง
+          </p>
+        </div>
+        <div class="hero-stats">
+          <div class="stat-card">
+            <span>ผู้สมัครทั้งหมด</span>
+            <strong id="applicantCount">0</strong>
+          </div>
+          <div class="stat-card">
+            <span>รถที่ลงแข่ง</span>
+            <strong id="vehicleCountStat">0</strong>
+          </div>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <section class="panel panel-form">
+          <div class="panel-header">
+            <div>
+              <p class="panel-kicker">Registration Form</p>
+              <h2>บันทึกข้อมูลผู้สมัคร</h2>
+            </div>
+            <span class="badge" id="formModeBadge">สร้างรายการใหม่</span>
+          </div>
+
+          <div class="status-banner" id="statusBanner">
+            พร้อมบันทึกข้อมูลผู้สมัครใหม่
+          </div>
+
+          <form id="registrationForm" class="registration-form">
+            <label class="field">
+              <span>ชื่อผู้สมัคร (ชื่อร้านค้า/ชื่อทีม)</span>
+              <input
+                id="applicantName"
+                name="applicantName"
+                type="text"
+                placeholder="เช่น ทีมช่างโจ Drag Bike"
+                maxlength="120"
+                required
+              />
+            </label>
+
+            <label class="field">
+              <span>ที่อยู่</span>
+              <textarea
+                id="address"
+                name="address"
+                rows="3"
+                placeholder="กรอกที่อยู่สำหรับติดต่อ"
+                maxlength="300"
+                required
+              ></textarea>
+            </label>
+
+            <label class="field">
+              <span>เบอร์โทรติดต่อ</span>
+              <input
+                id="contactPhone"
+                name="contactPhone"
+                type="tel"
+                placeholder="เช่น 08X-XXX-XXXX"
+                maxlength="20"
+                required
+              />
+            </label>
+
+            <div class="field-grid">
+              <label class="field">
+                <span>รุ่นที่สมัคร</span>
+                <select id="raceClass" name="raceClass" required></select>
+              </label>
+
+              <label class="field">
+                <span>จำนวนรถที่จะลงแข่ง</span>
+                <input
+                  id="vehicleCount"
+                  name="vehicleCount"
+                  type="number"
+                  min="1"
+                  max="20"
+                  value="1"
+                  required
+                />
+              </label>
+            </div>
+
+            <div class="field">
+              <div class="field-heading">
+                <span>หมายเลขของรถแต่ละคันที่ลง</span>
+                <small>ระบบจะตรวจเลขซ้ำกับข้อมูลเดิมให้อัตโนมัติ</small>
+              </div>
+              <div id="bikeNumbersContainer" class="bike-grid"></div>
+            </div>
+
+            <div class="form-actions">
+              <button class="button button-primary" type="submit" id="submitButton">
+                บันทึกข้อมูล
+              </button>
+              <button class="button button-secondary" type="button" id="cancelEditButton">
+                ล้างฟอร์ม
+              </button>
+            </div>
+          </form>
+
+          <details class="class-manager" open>
+            <summary>จัดการรุ่นที่เปิดรับสมัคร</summary>
+            <div class="class-manager-body">
+              <div class="class-manager-header">
+                <div>
+                  <h3>รายการรุ่นแข่งขัน</h3>
+                  <p>เพิ่ม แก้ไข และลบรุ่นที่เปิดรับสมัครได้จากรายการด้านล่าง</p>
+                </div>
+                <span class="badge badge-soft" id="classCountBadge">0 รุ่น</span>
+              </div>
+
+              <form id="classForm" class="class-form">
+                <input
+                  id="newClassInput"
+                  type="text"
+                  placeholder="เพิ่มรุ่นแข่งขันใหม่"
+                  maxlength="80"
+                />
+                <button class="button button-secondary" type="submit">
+                  เพิ่มรุ่น
+                </button>
+              </form>
+
+              <div id="classList" class="class-list"></div>
+            </div>
+          </details>
+        </section>
+
+        <section class="panel panel-list">
+          <div class="panel-header">
+            <div>
+              <p class="panel-kicker">Stored Entries</p>
+              <h2>รายการผู้สมัคร</h2>
+            </div>
+            <button class="button button-secondary" type="button" id="printAllButton">
+              พิมพ์รายการทั้งหมด
+            </button>
+          </div>
+
+          <div class="toolbar">
+            <label class="search-box">
+              <span>ค้นหา</span>
+              <input
+                id="searchInput"
+                type="search"
+                placeholder="ค้นหาจากชื่อทีม, ที่อยู่, เบอร์โทร, รุ่น, หมายเลขรถ"
+              />
+            </label>
+            <div class="toolbar-note">
+              ข้อมูลถูกจัดเก็บลงไฟล์ในเครื่องนี้โดยอัตโนมัติ
+            </div>
+          </div>
+
+          <details class="print-config" open>
+            <summary>ตั้งค่าคอลัมน์ตอนพิมพ์รายการ</summary>
+            <div class="print-config-body">
+              <div class="print-config-header">
+                <p>เลือกว่าจะพิมพ์ข้อมูลส่วนใดบ้าง และเลื่อนลำดับคอลัมน์ขึ้นลงได้ก่อนพิมพ์</p>
+                <button
+                  class="button button-secondary button-small"
+                  type="button"
+                  id="resetPrintColumnsButton"
+                >
+                  รีเซ็ตคอลัมน์
+                </button>
+              </div>
+              <div id="printColumnSummary" class="print-column-summary"></div>
+              <div id="printColumnList" class="print-column-list"></div>
+            </div>
+          </details>
+
+          <section class="summary-panel">
+            <div class="summary-panel-header">
+              <div>
+                <p class="panel-kicker">Summary Sheets</p>
+                <h2>หน้าสรุปรายการและแบบพิมพ์</h2>
+                <p class="summary-panel-copy">
+                  เลือกรุ่นแข่งขันและแบบฟอร์มสรุป แล้วพิมพ์ออกมาในรูปแบบใกล้เคียงตัวอย่างที่ส่งมา
+                </p>
+              </div>
+              <button class="button button-primary" type="button" id="printSummaryButton">
+                พิมพ์หน้าสรุป
+              </button>
+            </div>
+
+            <div class="summary-controls">
+              <label class="field summary-select-field">
+                <span>เลือกรุ่นที่ต้องการสรุป</span>
+                <select id="summaryClassSelect"></select>
+              </label>
+            </div>
+
+            <div id="summaryTemplateList" class="summary-template-list"></div>
+            <div id="summaryPreviewMeta" class="summary-preview-meta"></div>
+            <div id="summaryPreview" class="summary-preview-shell"></div>
+          </section>
+
+          <div id="registrationList" class="registration-list"></div>
+        </section>
+      </main>
+    </div>
+
+    <script src="/app.js?v=20260310-bracket-editor-v2"></script>
+  </body>
+</html>
+
+
