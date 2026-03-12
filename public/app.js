@@ -1168,6 +1168,19 @@ function buildBracketPageGroups(rounds, entryCount = 0) {
     }];
   }
 
+  if (entryCount <= 32 && rounds[0]?.count === 32) {
+    return [
+      {
+        startIndex: 0,
+        rounds: rounds.slice(0, 2),
+      },
+      {
+        startIndex: 1,
+        rounds: rounds.slice(1),
+      },
+    ];
+  }
+
   const maxColumnsPerPage = rounds[0].count >= 64 ? 3 : 4;
   if (rounds.length <= maxColumnsPerPage) {
     return [{
@@ -1471,30 +1484,35 @@ function getBracketPageLayouts(pageGroup, topY, bottomY) {
     centersByRound[index] = buildNextRoundCenters(centersByRound[index - 1]);
   }
 
-  const firstRoundCenters = centersByRound[0];
-  const firstRoundStep = firstRoundCenters.length > 1
-    ? Math.abs(firstRoundCenters[1] - firstRoundCenters[0])
-    : 72;
-  const sharedBoxHeight = Math.max(22, Math.min(50, firstRoundStep - 4, firstRoundStep * 0.92));
-  const sharedFontSize = sharedBoxHeight >= 46 ? 10.25 : sharedBoxHeight >= 38 ? 10 : 9.25;
-
   return pageGroup.rounds.map((round, index) => {
     const centers = centersByRound[index].map((value) => snapBracketCoordinate(value));
+    const roundStep = centers.length > 1
+      ? Math.abs(centers[1] - centers[0])
+      : index > 0 && centersByRound[index - 1]?.length > 1
+        ? Math.abs(centersByRound[index - 1][1] - centersByRound[index - 1][0]) * 2
+        : 72;
+    const boxHeight = snapBracketCoordinate(Math.max(22, Math.min(50, roundStep - 4, roundStep * 0.92)));
+    const fontSize = boxHeight >= 46 ? 10.25 : boxHeight >= 38 ? 10 : 9.25;
 
     return {
       ...round,
       centers,
-      boxHeight: snapBracketCoordinate(sharedBoxHeight),
-      fontSize: sharedFontSize,
+      boxHeight,
+      fontSize,
     };
   });
 }
 
-function renderBracketPairConnector(startX, topY, bottomY, nextX, nextY) {
+function renderBracketPairConnector(startX, topY, bottomY, nextX, nextY, options = {}) {
   const sourceX = snapBracketCoordinate(startX);
   const targetX = snapBracketCoordinate(nextX);
   const gap = Math.max(20, targetX - sourceX);
-  const branchStub = snapBracketCoordinate(Math.min(26, Math.max(16, gap * 0.28)));
+  const branchStub = snapBracketCoordinate(
+    Math.min(
+      options.maxStub ?? 26,
+      Math.max(options.minStub ?? 16, gap * (options.ratio ?? 0.28)),
+    ),
+  );
   const elbowX = snapBracketCoordinate(sourceX + branchStub);
   const mergeY = snapBracketCoordinate((topY + bottomY) / 2);
   const topYAligned = snapBracketCoordinate(topY);
@@ -1529,6 +1547,82 @@ function getBracketPageMetrics(columnCount, viewBoxWidth, leftPadding, rightPadd
   };
 }
 
+function getRoundOfSixteenBracketPreset(pageGroup) {
+  if (pageGroup.rounds[0]?.count !== 16 || pageGroup.rounds.length !== 5) {
+    return null;
+  }
+
+  return {
+    viewBoxWidth: 1120,
+    viewBoxHeight: 1020,
+    canvasPaddingTop: 126,
+    labelY: 34,
+    topY: 102,
+    bottomY: 962,
+    leftPadding: 22,
+    rightPadding: 18,
+    roundXs: [26, 252, 484, 718, 940],
+    roundWidths: [150, 148, 148, 156, 174],
+    firstRound: {
+      maxBoxHeight: 42,
+    },
+    connectorOptions: {
+      minStub: 24,
+      maxStub: 38,
+      ratio: 0.38,
+    },
+    thirdPlace: {
+      sourceWidth: 126,
+      resultWidth: 174,
+      boxHeight: 44,
+      fontSize: 10,
+      leftX: 724,
+      winnerX: 930,
+      topCenterY: 892,
+      bottomCenterY: 952,
+      titleOffset: 46,
+      rankOffset: 36,
+      connectorOptions: {
+        minStub: 24,
+        maxStub: 34,
+        ratio: 0.36,
+      },
+    },
+  };
+}
+
+function getRoundOfThirtyTwoIntroPreset(pageGroup, totalPages) {
+  if (
+    totalPages !== 2 ||
+    pageGroup.startIndex !== 0 ||
+    pageGroup.rounds[0]?.count !== 32 ||
+    pageGroup.rounds[1]?.count !== 16
+  ) {
+    return null;
+  }
+
+  return {
+    viewBoxWidth: 1120,
+    viewBoxHeight: 1020,
+    canvasPaddingTop: 126,
+    labelY: 34,
+    topY: 102,
+    bottomY: 962,
+    leftPadding: 22,
+    rightPadding: 18,
+    roundXs: [26, 252],
+    roundWidths: [150, 148],
+    connectorOptions: {
+      minStub: 24,
+      maxStub: 38,
+      ratio: 0.38,
+    },
+    firstRound: {
+      maxBoxHeight: 22,
+    },
+  };
+}
+
 function getBracketSlotStyle(x, centerY, boxWidth, boxHeight, viewBoxWidth, viewBoxHeight) {
   return [
     `left:${(x / viewBoxWidth) * 100}%`,
@@ -1545,7 +1639,7 @@ function renderBracketSlotShape(x, centerY, boxWidth, boxHeight, slotClassName =
     .join(" ");
   const shapeClassName = `bracket-slot-shape${shapeClasses ? ` ${shapeClasses}` : ""}`;
   const y = snapBracketCoordinate(centerY - boxHeight / 2);
-  const radius = snapBracketCoordinate(Math.min(14, boxHeight / 3));
+  const radius = snapBracketCoordinate(Math.min(12, boxHeight / 3.2));
 
   return `
     <rect
@@ -1618,9 +1712,20 @@ function buildBracketSelectOptions(config, rounds, roundIndex, slotIndex) {
   ].join("");
 }
 
-function buildBracketSlotMarkup(config, rounds, absoluteRoundIndex, slotIndex, x, centerY, boxWidth, boxHeight, fontSize, interactive) {
-  const viewBoxWidth = 1120;
-  const viewBoxHeight = 980;
+function buildBracketSlotMarkup(
+  config,
+  rounds,
+  absoluteRoundIndex,
+  slotIndex,
+  x,
+  centerY,
+  boxWidth,
+  boxHeight,
+  fontSize,
+  interactive,
+  viewBoxWidth,
+  viewBoxHeight,
+) {
   const selectedValue = rounds[absoluteRoundIndex][slotIndex] || "";
   const slotClassName = absoluteRoundIndex === rounds.length - 1 ? "bracket-slot champion" : "bracket-slot";
 
@@ -1663,7 +1768,7 @@ function buildThirdPlaceSelectOptions(config, optionIds, currentValue) {
   ].join("");
 }
 
-function buildThirdPlaceMarkup(record, interactive, viewBoxWidth, viewBoxHeight) {
+function buildThirdPlaceMarkup(record, interactive, viewBoxWidth, viewBoxHeight, layoutOptions = null) {
   if (!hasThirdPlaceMatch(record.config)) {
     return {
       connectorsHtml: "",
@@ -1672,27 +1777,29 @@ function buildThirdPlaceMarkup(record, interactive, viewBoxWidth, viewBoxHeight)
     };
   }
 
-  const sourceWidth = 212;
-  const resultWidth = 214;
-  const boxHeight = 48;
-  const fontSize = 10;
-  const leftX = 620;
-  const winnerX = 906;
-  const topCenterY = 790;
-  const bottomCenterY = 856;
+  const sourceWidth = layoutOptions?.sourceWidth ?? 212;
+  const resultWidth = layoutOptions?.resultWidth ?? 214;
+  const boxHeight = layoutOptions?.boxHeight ?? 48;
+  const fontSize = layoutOptions?.fontSize ?? 10;
+  const leftX = layoutOptions?.leftX ?? 620;
+  const winnerX = layoutOptions?.winnerX ?? 906;
+  const topCenterY = layoutOptions?.topCenterY ?? 790;
+  const bottomCenterY = layoutOptions?.bottomCenterY ?? 856;
   const winnerCenterY = (topCenterY + bottomCenterY) / 2;
   const resultClassName = "bracket-slot third-place-result";
   const thirdPlaceWinnerLabel = getBracketDisplayLabel(record.config, record.thirdPlaceWinner);
   const fourthPlaceLabel = getBracketDisplayLabel(record.config, record.thirdPlaceLoserId);
+  const titleOffset = layoutOptions?.titleOffset ?? 72;
+  const rankOffset = layoutOptions?.rankOffset ?? 50;
 
   const titleStyle = [
     `left:${(leftX / viewBoxWidth) * 100}%`,
-    `top:${((topCenterY - 72) / viewBoxHeight) * 100}%`,
+    `top:${((topCenterY - titleOffset) / viewBoxHeight) * 100}%`,
     `width:${((winnerX + resultWidth - leftX) / viewBoxWidth) * 100}%`,
   ].join(";");
   const rankStyle = [
     `left:${(leftX / viewBoxWidth) * 100}%`,
-    `top:${((bottomCenterY + 50) / viewBoxHeight) * 100}%`,
+    `top:${((bottomCenterY + rankOffset) / viewBoxHeight) * 100}%`,
     `width:${((winnerX + resultWidth - leftX) / viewBoxWidth) * 100}%`,
   ].join(";");
 
@@ -1767,6 +1874,7 @@ function buildThirdPlaceMarkup(record, interactive, viewBoxWidth, viewBoxHeight)
       bottomCenterY,
       winnerX,
       winnerCenterY,
+      layoutOptions?.connectorOptions,
     ),
     shapesHtml: `${participantShapes}${winnerShape}`,
     overlaysHtml: `
@@ -1782,35 +1890,44 @@ function buildThirdPlaceMarkup(record, interactive, viewBoxWidth, viewBoxHeight)
 }
 
 function buildBracketPageMarkup(className, record, pageGroup, pageNumber, totalPages, interactive) {
-  const viewBoxWidth = 1120;
-  const viewBoxHeight = 980;
+  const pagePreset =
+    getRoundOfThirtyTwoIntroPreset(pageGroup, totalPages) ||
+    getRoundOfSixteenBracketPreset(pageGroup);
+  const viewBoxWidth = pagePreset?.viewBoxWidth ?? 1120;
+  const viewBoxHeight = pagePreset?.viewBoxHeight ?? 980;
   const isFinalPage =
     pageGroup.startIndex + pageGroup.rounds.length === record.config.rounds.length;
   const includeThirdPlace = isFinalPage && hasThirdPlaceMatch(record.config);
-  const canvasPaddingTop = includeThirdPlace ? 120 : 114;
-  const leftPadding = 36;
+  const canvasPaddingTop = pagePreset?.canvasPaddingTop ?? (includeThirdPlace ? 120 : 114);
+  const leftPadding = pagePreset?.leftPadding ?? 36;
   const columnCount = pageGroup.rounds.length;
-  const rightPadding = 40;
+  const rightPadding = pagePreset?.rightPadding ?? 40;
   const { boxWidth, startX, xStep } = getBracketPageMetrics(
     columnCount,
     viewBoxWidth,
     leftPadding,
     rightPadding,
   );
-  const labelY = 42;
-  const topY = 138;
-  const bottomY = includeThirdPlace ? 716 : 920;
+  const labelY = pagePreset?.labelY ?? 42;
+  const topY = pagePreset?.topY ?? 138;
+  const bottomY = pagePreset?.bottomY ?? (includeThirdPlace ? 716 : 920);
 
   const layoutRounds = getBracketPageLayouts(pageGroup, topY, bottomY).map((round, index) => {
+    const adjustedBoxHeight = index === 0 && pagePreset?.firstRound?.maxBoxHeight
+      ? Math.min(round.boxHeight, pagePreset.firstRound.maxBoxHeight)
+      : round.boxHeight;
     return {
       ...round,
       absoluteIndex: pageGroup.startIndex + index,
-      x: startX + xStep * index,
+      boxHeight: adjustedBoxHeight,
+      fontSize: adjustedBoxHeight <= 42 ? Math.min(round.fontSize, 9.75) : round.fontSize,
+      boxWidth: pagePreset?.roundWidths?.[index] ?? boxWidth,
+      x: pagePreset?.roundXs?.[index] ?? (startX + xStep * index),
     };
   });
 
   const labels = layoutRounds.map((round) => {
-    return `<text x="${round.x + boxWidth / 2}" y="${labelY}" text-anchor="middle" class="bracket-round-label">${escapeHtml(round.label)}</text>`;
+    return `<text x="${round.x + round.boxWidth / 2}" y="${labelY}" text-anchor="middle" class="bracket-round-label">${escapeHtml(round.label)}</text>`;
   });
 
   const connectors = [];
@@ -1821,25 +1938,32 @@ function buildBracketPageMarkup(className, record, pageGroup, pageNumber, totalP
     for (let slotIndex = 0; slotIndex < nextRound.count; slotIndex += 1) {
       connectors.push(
         renderBracketPairConnector(
-          currentRound.x + boxWidth,
+          currentRound.x + currentRound.boxWidth,
           currentRound.centers[slotIndex * 2],
           currentRound.centers[slotIndex * 2 + 1],
           nextRound.x,
           nextRound.centers[slotIndex],
+          pagePreset?.connectorOptions,
         ),
       );
     }
   }
 
   const thirdPlaceMarkup = includeThirdPlace
-    ? buildThirdPlaceMarkup(record, interactive, viewBoxWidth, viewBoxHeight)
+    ? buildThirdPlaceMarkup(
+      record,
+      interactive,
+      viewBoxWidth,
+      viewBoxHeight,
+      pagePreset?.thirdPlace ?? null,
+    )
     : { connectorsHtml: "", shapesHtml: "", overlaysHtml: "" };
 
   const slotShapes = layoutRounds.flatMap((round) => {
     return round.centers.map((centerY) => {
       const slotClassName =
         round.absoluteIndex === record.rounds.length - 1 ? "bracket-slot champion" : "bracket-slot";
-      return renderBracketSlotShape(round.x, centerY, boxWidth, round.boxHeight, slotClassName);
+      return renderBracketSlotShape(round.x, centerY, round.boxWidth, round.boxHeight, slotClassName);
     });
   }).join("");
 
@@ -1852,10 +1976,12 @@ function buildBracketPageMarkup(className, record, pageGroup, pageNumber, totalP
         slotIndex,
         round.x,
         centerY,
-        boxWidth,
+        round.boxWidth,
         round.boxHeight,
         round.fontSize,
         interactive,
+        viewBoxWidth,
+        viewBoxHeight,
       );
     });
   }).join("");

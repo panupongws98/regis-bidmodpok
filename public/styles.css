@@ -1005,7 +1005,7 @@ body.modal-open {
 .bracket-slot-shape {
   fill: #fff;
   stroke: #111;
-  stroke-width: 1.5;
+  stroke-width: 1.7;
 }
 
 .bracket-slot-shape.champion {
@@ -1013,7 +1013,7 @@ body.modal-open {
 }
 
 .bracket-slot-shape.third-place-result {
-  fill: #f8f1e5;
+  fill: #fff;
 }
 
 .bracket-slot-value,
@@ -1223,7 +1223,7 @@ body.modal-open {
 .bracket-connectors path {
   fill: none;
   stroke: #111;
-  stroke-width: 2.6;
+  stroke-width: 3.2;
   stroke-linecap: square;
   stroke-linejoin: round;
   vector-effect: non-scaling-stroke;
