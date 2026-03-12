@@ -941,10 +941,11 @@ body.modal-open {
 }
 
 .summary-preview-paper .summary-sheet {
-  width: min(100%, 860px);
-  min-height: 1120px;
+  width: min(100%, 210mm);
+  min-height: 297mm;
   margin: 0 auto;
-  padding: 42px 34px;
+  padding: 6mm 10mm 10mm;
+  box-sizing: border-box;
   border: 1px solid rgba(255, 32, 57, 0.16);
   background: #fff;
   box-shadow: 0 28px 50px rgba(0, 0, 0, 0.24);
@@ -955,7 +956,7 @@ body.modal-open {
 }
 
 .summary-preview-paper-bracket .summary-sheet {
-  width: min(100%, 860px);
+  width: min(100%, 210mm);
   min-width: 0;
 }
 
@@ -964,7 +965,7 @@ body.modal-open {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  width: min(100%, 860px);
+  width: min(100%, 210mm);
   margin: 0 auto;
   padding: 14px 16px;
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -1083,19 +1084,21 @@ body.modal-open {
 .summary-sheet {
   color: #111;
   font-family: Tahoma, "Segoe UI", sans-serif;
+  break-inside: avoid-page;
+  page-break-inside: avoid;
 }
 
 .summary-sheet-brand {
   display: flex;
   align-items: center;
-  gap: 14px;
-  margin-bottom: 14px;
-  padding-bottom: 12px;
+  gap: 10px;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
   border-bottom: 2px solid #111;
 }
 
 .summary-sheet-brand-logo {
-  width: 86px;
+  width: 62px;
   height: auto;
   flex: 0 0 auto;
 }
@@ -1107,35 +1110,64 @@ body.modal-open {
 
 .summary-sheet-brand-name {
   color: #d6142b;
-  font-size: 1.45rem;
+  font-size: 1.18rem;
   font-weight: 900;
   line-height: 1;
   letter-spacing: 0.04em;
 }
 
 .summary-sheet-brand-subtitle {
-  margin-top: 4px;
-  font-size: 0.78rem;
+  margin-top: 2px;
+  font-size: 0.66rem;
   font-weight: 800;
   letter-spacing: 0.04em;
 }
 
 .summary-sheet-title {
-  margin-bottom: 18px;
+  margin-bottom: 12px;
   font-size: 1.28rem;
   font-weight: 700;
 }
 
 .summary-sheet-note {
-  margin-bottom: 12px;
+  margin-bottom: 8px;
   color: #4a4a4a;
   line-height: 1.5;
+}
+
+.summary-sheet-title-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px 18px;
+  margin-bottom: 12px;
+}
+
+.summary-sheet-title-row .summary-sheet-title {
+  margin-bottom: 0;
+}
+
+.summary-sheet-note--inline {
+  margin-bottom: 0;
+  font-size: 0.84rem;
+  font-weight: 600;
+  text-align: right;
+  white-space: nowrap;
 }
 
 .summary-sheet-table {
   width: 100%;
   border-collapse: collapse;
   table-layout: fixed;
+}
+
+.summary-sheet-table thead {
+  display: table-header-group;
+}
+
+.summary-sheet-table tr {
+  break-inside: avoid;
+  page-break-inside: avoid;
 }
 
 .summary-sheet-table th,
@@ -1468,6 +1500,17 @@ body.modal-open {
 
   .summary-preview-shell {
     padding: 10px;
+  }
+
+  .summary-sheet-title-row {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .summary-sheet-note--inline {
+    width: 100%;
+    text-align: left;
+    white-space: normal;
   }
 
   .summary-preview-paper .summary-sheet {

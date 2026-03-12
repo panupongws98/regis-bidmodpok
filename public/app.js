@@ -51,10 +51,15 @@ const SUMMARY_TEMPLATES = [
   },
 ];
 const DEFAULT_SUMMARY_TEMPLATE_ID = "with-vehicle-numbers";
-const SUMMARY_ROWS = {
+const SUMMARY_MINIMUM_ROWS = {
   "name-only": 24,
   "with-vehicle-numbers": 24,
-  "timing-sheet": 25,
+  "timing-sheet": 22,
+};
+const SUMMARY_ROWS_PER_PAGE = {
+  "name-only": 24,
+  "with-vehicle-numbers": 24,
+  "timing-sheet": 22,
 };
 const currentPage = document.body.dataset.page || "registration";
 const DEFAULT_STATUS_MESSAGES = {
@@ -253,6 +258,10 @@ function escapeHtml(value) {
 
 function getEventLogoUrl() {
   return new URL(EVENT_BRAND.logoPath, window.location.origin).toString();
+}
+
+function getStylesheetUrl() {
+  return new URL("/styles.css", window.location.origin).toString();
 }
 
 function buildPrintBrandBanner(modeLabel) {
@@ -971,7 +980,7 @@ function getSummaryTemplate(templateId) {
   return SUMMARY_TEMPLATES.find((template) => template.id === templateId);
 }
 
-function buildSummaryTable(columns, rows, minimumRows, className, extraClass = "") {
+function buildSummaryTable(columns, rows, minimumRows, className, extraClass = "", rowsPerPage = minimumRows) {
   const filledRows = [...rows];
   while (filledRows.length < minimumRows) {
     filledRows.push(columns.map(() => ""));
@@ -983,28 +992,47 @@ function buildSummaryTable(columns, rows, minimumRows, className, extraClass = "
   const head = columns
     .map((column) => `<th>${escapeHtml(column.header)}</th>`)
     .join("");
-  const body = filledRows
-    .map((row) => {
-      const cells = row
-        .map((cell) => `<td>${escapeHtml(cell)}</td>`)
+  const pageSize = Math.max(1, rowsPerPage);
+  const pages = [];
+  for (let index = 0; index < filledRows.length; index += pageSize) {
+    pages.push(filledRows.slice(index, index + pageSize));
+  }
+
+  return pages
+    .map((pageRows, pageIndex) => {
+      const body = pageRows
+        .map((row) => {
+          const cells = row
+            .map((cell) => `<td>${escapeHtml(cell)}</td>`)
+            .join("");
+          return `<tr>${cells}</tr>`;
+        })
         .join("");
-      return `<tr>${cells}</tr>`;
+      const totalPages = pages.length;
+      const titleRow = totalPages > 1
+        ? `
+          <div class="summary-sheet-title-row">
+            <div class="summary-sheet-title">รุ่น ${escapeHtml(className || "-")}</div>
+            <div class="summary-sheet-note summary-sheet-note--inline">หน้า ${pageIndex + 1} / ${totalPages}</div>
+          </div>
+        `
+        : `<div class="summary-sheet-title">รุ่น ${escapeHtml(className || "-")}</div>`;
+
+      return `
+        <section class="summary-sheet ${extraClass}">
+          ${buildSummarySheetBrand()}
+          ${titleRow}
+          <table class="summary-sheet-table">
+            <colgroup>${colgroup}</colgroup>
+            <thead>
+              <tr>${head}</tr>
+            </thead>
+            <tbody>${body}</tbody>
+          </table>
+        </section>
+      `;
     })
     .join("");
-
-  return `
-    <section class="summary-sheet ${extraClass}">
-      ${buildSummarySheetBrand()}
-      <div class="summary-sheet-title">รุ่น ${escapeHtml(className || "-")}</div>
-      <table class="summary-sheet-table">
-        <colgroup>${colgroup}</colgroup>
-        <thead>
-          <tr>${head}</tr>
-        </thead>
-        <tbody>${body}</tbody>
-      </table>
-    </section>
-  `;
 }
 
 function buildNameOnlySummary(className) {
@@ -1015,9 +1043,10 @@ function buildNameOnlySummary(className) {
   return buildSummaryTable(
     [{ header: "ชื่อผู้สมัคร (ชื่อร้านค้า/ชื่อทีม)", width: "100%" }],
     rows,
-    SUMMARY_ROWS["name-only"],
+    SUMMARY_MINIMUM_ROWS["name-only"],
     className,
     "summary-sheet-name-only",
+    SUMMARY_ROWS_PER_PAGE["name-only"],
   );
 }
 
@@ -1037,9 +1066,10 @@ function buildVehicleSummary(className) {
       { header: "หมายเลขรถ", width: "18%" },
     ],
     rows,
-    SUMMARY_ROWS["with-vehicle-numbers"],
+    SUMMARY_MINIMUM_ROWS["with-vehicle-numbers"],
     className,
     "summary-sheet-vehicle-list",
+    SUMMARY_ROWS_PER_PAGE["with-vehicle-numbers"],
   );
 }
 
@@ -1050,17 +1080,18 @@ function buildTimingSummary(className) {
 
   return buildSummaryTable(
     [
-      { header: "ชื่อทีมแข่ง", width: "38%" },
-      { header: "หมายเลขรถ", width: "14%" },
-      { header: "เวลารอบที่ 1", width: "14%" },
-      { header: "เวลารอบที่ 2", width: "14%" },
+      { header: "ชื่อทีมแข่ง", width: "40%" },
+      { header: "หมายเลขรถ", width: "12%" },
+      { header: "เวลารอบที่ 1", width: "12%" },
+      { header: "เวลารอบที่ 2", width: "12%" },
       { header: "เวลาที่ดีที่สุด", width: "14%" },
       { header: "อันดับ", width: "10%" },
     ],
     rows,
-    SUMMARY_ROWS["timing-sheet"],
+    SUMMARY_MINIMUM_ROWS["timing-sheet"],
     className,
     "summary-sheet-timing",
+    SUMMARY_ROWS_PER_PAGE["timing-sheet"],
   );
 }
 function getBracketEntriesForClass(className) {
@@ -1125,9 +1156,16 @@ function buildBracketRounds(slotCount) {
   return rounds;
 }
 
-function buildBracketPageGroups(rounds) {
+function buildBracketPageGroups(rounds, entryCount = 0) {
   if (rounds.length === 0) {
     return [];
+  }
+
+  if (entryCount <= 16) {
+    return [{
+      startIndex: 0,
+      rounds: [...rounds],
+    }];
   }
 
   const maxColumnsPerPage = rounds[0].count >= 64 ? 3 : 4;
@@ -1192,7 +1230,7 @@ function getBracketConfig(className) {
     entries,
     entryMap: new Map(entries.map((entry) => [entry.id, entry])),
     rounds,
-    pageGroups: buildBracketPageGroups(rounds),
+    pageGroups: buildBracketPageGroups(rounds, entries.length),
   };
 }
 
@@ -1825,8 +1863,10 @@ function buildBracketPageMarkup(className, record, pageGroup, pageNumber, totalP
   return `
     <section class="summary-sheet summary-sheet-bracket${interactive ? " is-editor" : ""}">
       ${buildSummarySheetBrand()}
-      <div class="summary-sheet-title">รุ่น ${escapeHtml(className || "-")}</div>
-      <div class="summary-sheet-note">ผู้สมัคร ${record.config.entries.length} ทีม | หน้า ${pageNumber} / ${totalPages}</div>
+      <div class="summary-sheet-title-row">
+        <div class="summary-sheet-title">รุ่น ${escapeHtml(className || "-")}</div>
+        <div class="summary-sheet-note summary-sheet-note--inline">ผู้สมัคร ${record.config.entries.length} ทีม | หน้า ${pageNumber} / ${totalPages}</div>
+      </div>
       <div class="bracket-canvas" style="padding-top:${canvasPaddingTop}%">
         <svg viewBox="0 0 ${viewBoxWidth} ${viewBoxHeight}" preserveAspectRatio="none" class="bracket-canvas-svg" xmlns="http://www.w3.org/2000/svg" aria-label="Bracket page ${pageNumber}">
           <g class="bracket-labels">${labels.join("")}</g>
@@ -2237,16 +2277,34 @@ async function loadInitialData() {
   renderClassEntries([createEmptyRegistrationEntry()]);
 }
 function buildPrintShell(title, body) {
+  const usesSummaryLayout = body.includes("summary-sheet");
+  const usesBracketLayout = body.includes("summary-sheet-bracket");
+  const printBodyClass = usesSummaryLayout
+    ? "print-body print-body-summary"
+    : "print-body print-body-standard";
+  const stylesheetLink = usesSummaryLayout
+    ? `<link rel="stylesheet" href="${escapeHtml(getStylesheetUrl())}" />`
+    : "";
+  const renderedBody = usesSummaryLayout
+    ? `
+      <div class="summary-preview-shell print-summary-shell">
+        <div class="${usesBracketLayout ? "summary-preview-paper summary-preview-paper-bracket" : "summary-preview-paper"}">
+          ${body}
+        </div>
+      </div>
+    `
+    : body;
   return `
     <!DOCTYPE html>
     <html lang="th">
       <head>
         <meta charset="UTF-8" />
         <title>${escapeHtml(title)}</title>
+        ${stylesheetLink}
         <style>
           @page {
             size: A4 portrait;
-            margin: 12mm;
+            margin: 0;
           }
 
           body {
@@ -2256,6 +2314,44 @@ function buildPrintShell(title, body) {
             background:
               linear-gradient(135deg, rgba(214, 20, 43, 0.1), transparent 32%),
               #fff;
+          }
+
+          .print-body {
+            box-sizing: border-box;
+          }
+
+          .print-body-standard {
+            padding: 8mm;
+          }
+
+          .print-body-summary {
+            padding: 16px;
+          }
+
+          body.print-body-summary {
+            background: #fff;
+          }
+
+          .print-summary-shell {
+            max-width: calc(210mm + 32px);
+            margin: 0 auto;
+          }
+
+          .print-body-summary .summary-preview-shell {
+            padding: 0;
+            border: 0;
+            border-radius: 0;
+            background: #fff;
+            overflow: visible;
+          }
+
+          .print-body-summary .summary-preview-paper {
+            background: #fff;
+          }
+
+          .print-body-summary .summary-preview-paper .summary-sheet {
+            border: 0;
+            box-shadow: none;
           }
 
           h1 {
@@ -2390,211 +2486,38 @@ function buildPrintShell(title, body) {
             font-size: 14px;
           }
 
-          .summary-sheet {
-            width: 100%;
-            min-height: calc(297mm - 24mm);
-            padding: 18mm 14mm 12mm;
-            background:
-              linear-gradient(180deg, rgba(214, 20, 43, 0.05), transparent 70px),
-              #fff;
-            page-break-after: always;
-            box-sizing: border-box;
-          }
+          @media print {
+            body.print-body-summary {
+              padding: 0;
+              background: #fff !important;
+            }
 
-          .summary-sheet:last-child {
-            page-break-after: auto;
-          }
+            body.print-body-summary .summary-preview-shell {
+              padding: 0;
+              border: 0;
+              border-radius: 0;
+              background: transparent;
+              overflow: visible;
+            }
 
-          .summary-sheet-title {
-            margin-bottom: 16px;
-            font-size: 22px;
-            font-weight: 700;
-          }
+            body.print-body-summary .summary-preview-paper {
+              gap: 0;
+            }
 
-          .summary-sheet-brand {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 12px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid #111;
-          }
+            body.print-body-summary .summary-preview-paper .summary-sheet {
+              margin: 0 auto;
+              border: 0;
+              box-shadow: none;
+              page-break-after: always;
+            }
 
-          .summary-sheet-brand-logo {
-            width: 82px;
-            height: auto;
-            flex: 0 0 auto;
-          }
-
-          .summary-sheet-brand-copy {
-            display: grid;
-            gap: 2px;
-          }
-
-          .summary-sheet-brand-name {
-            color: #d6142b;
-            font-size: 24px;
-            font-weight: 900;
-            line-height: 1;
-            letter-spacing: 0.04em;
-          }
-
-          .summary-sheet-brand-subtitle {
-            margin-top: 4px;
-            font-size: 12px;
-            font-weight: 800;
-            letter-spacing: 0.04em;
-          }
-
-          .summary-sheet-note {
-            margin-bottom: 10px;
-            color: #444;
-            font-size: 14px;
-          }
-
-          .summary-sheet-table {
-            margin-top: 0;
-            table-layout: fixed;
-          }
-
-          .summary-sheet-table th,
-          .summary-sheet-table td {
-            height: 34px;
-            font-size: 15px;
-            text-align: center;
-          }
-
-          .summary-sheet-table td:first-child {
-            text-align: left;
-          }
-
-          .summary-bracket-wrap {
-            width: 100%;
-            overflow: hidden;
-          }
-
-          .summary-bracket-svg {
-            width: 100%;
-            height: auto;
-          }
-
-          .bracket-title {
-            font-size: 22px;
-            font-weight: 700;
-          }
-          .bracket-page-note {
-            fill: #444;
-            font-size: 12px;
-            font-weight: 600;
-          }
-
-          .bracket-round-label,
-          .bracket-champion-label {
-            font-size: 16px;
-            font-weight: 700;
-          }
-
-          .bracket-connectors path {
-            fill: none;
-            stroke: #111;
-            stroke-width: 2.6;
-            stroke-linecap: square;
-            stroke-linejoin: round;
-            vector-effect: non-scaling-stroke;
-          }
-
-          .bracket-box-group rect {
-            fill: #fff;
-            stroke: #111;
-            stroke-width: 1.5;
-          }
-
-          .bracket-box-group.entrant rect {
-            fill: #fffdf9;
-          }
-
-          .bracket-box-group.champion rect {
-            fill: #f7efe2;
-          }
-
-          .bracket-box-group text {
-            font-size: 12px;
-            font-weight: 700;
-          }
-
-          .bracket-canvas {
-            position: relative;
-            width: 100%;
-          }
-
-          .bracket-canvas-svg {
-            position: absolute;
-            inset: 0;
-            width: 100%;
-            height: 100%;
-            shape-rendering: geometricPrecision;
-          }
-
-          .bracket-slot {
-            position: absolute;
-            display: block;
-          }
-
-          .bracket-slot-shape {
-            fill: #fff;
-            stroke: #111;
-            stroke-width: 1.5;
-          }
-
-          .bracket-slot-shape.champion {
-            fill: #f7efe2;
-          }
-
-          .bracket-slot-shape.third-place-result {
-            fill: #f8f1e5;
-          }
-
-          .bracket-slot-value {
-            width: 100%;
-            height: 100%;
-            padding: 5px 10px;
-            box-sizing: border-box;
-            border: 0;
-            border-radius: 0;
-            background: transparent;
-            color: #111;
-            line-height: 1.15;
-            overflow: hidden;
-            overflow-wrap: anywhere;
-            word-break: break-word;
-            white-space: normal;
-            display: -webkit-box;
-            -webkit-box-orient: vertical;
-            -webkit-line-clamp: 3;
-            pointer-events: none;
-          }
-
-          .bracket-third-place-title {
-            position: absolute;
-            color: #111;
-            font-size: 14px;
-            font-weight: 700;
-            letter-spacing: 0.01em;
-          }
-
-          .bracket-third-place-ranks {
-            position: absolute;
-            color: #444;
-            font-size: 12px;
-            line-height: 1.55;
-          }
-
-          .bracket-third-place-ranks strong {
-            color: #111;
+            body.print-body-summary .summary-preview-paper .summary-sheet:last-child {
+              page-break-after: auto;
+            }
           }
         </style>
       </head>
-      <body>${body}</body>
+      <body class="${printBodyClass}">${renderedBody}</body>
     </html>
   `;
 }
@@ -2606,10 +2529,34 @@ function openPrintWindow(title, body) {
     return;
   }
 
+  let hasPrinted = false;
+  const triggerPrint = () => {
+    if (hasPrinted || printWindow.closed) {
+      return;
+    }
+
+    hasPrinted = true;
+    printWindow.focus();
+    window.setTimeout(() => {
+      printWindow.print();
+    }, 80);
+  };
+
   printWindow.document.write(buildPrintShell(title, body));
   printWindow.document.close();
-  printWindow.focus();
-  printWindow.print();
+
+  printWindow.addEventListener("load", () => {
+    if (typeof printWindow.requestAnimationFrame === "function") {
+      printWindow.requestAnimationFrame(() => {
+        printWindow.requestAnimationFrame(triggerPrint);
+      });
+      return;
+    }
+
+    window.setTimeout(triggerPrint, 120);
+  }, { once: true });
+
+  window.setTimeout(triggerPrint, 1000);
 }
 
 function printRegistration(registration) {
