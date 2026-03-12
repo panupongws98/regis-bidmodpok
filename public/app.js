@@ -1,5 +1,13 @@
 ﻿const PRINT_COLUMNS_STORAGE_KEY = "drag-bike-print-columns";
 const BRACKET_SELECTIONS_STORAGE_KEY = "drag-bike-bracket-selections-v1";
+const EVENT_BRAND = {
+  name: "งานแข่งรถไฮสปีด บิดหมดปลอก",
+  subtitle: "ณ สนามแข่งรถบ้านฉางเรสซิ่ง จ.ระยอง",
+  fullName: "งานแข่งรถไฮสปีด บิดหมดปลอก ณ สนามแข่งรถบ้านฉางเรสซิ่ง จ.ระยอง",
+  header: "ระบบจัดการผู้สมัครหน้างาน",
+  logoPath: "/logo-bidmodplok.svg",
+};
+const EVENT_LOCKUP = EVENT_BRAND.fullName;
 const PRINT_COLUMN_DEFINITIONS = [
   { id: "rowNumber", label: "ลำดับ", header: "ลำดับ" },
   { id: "entryCode", label: "รหัสรายการ", header: "รหัสรายการ" },
@@ -38,8 +46,8 @@ const SUMMARY_TEMPLATES = [
   },
   {
     id: "bracket-12",
-    label: "Tournament Bracket",
-    description: "รอบแรกเลือกทีมเองด้วย dropdown และรอบต่อไปเลือกผู้ชนะจากคู่ก่อนหน้า",
+    label: "สายประกบรุ่นแข่ง",
+    description: "กำหนดช่องรอบแรกเอง แล้วเลือกรอบถัดไปจากผู้ชนะของคู่ก่อนหน้า",
   },
 ];
 const DEFAULT_SUMMARY_TEMPLATE_ID = "with-vehicle-numbers";
@@ -48,6 +56,14 @@ const SUMMARY_ROWS = {
   "with-vehicle-numbers": 24,
   "timing-sheet": 25,
 };
+const currentPage = document.body.dataset.page || "registration";
+const DEFAULT_STATUS_MESSAGES = {
+  registration: `พร้อมเปิดรับผู้สมัคร${EVENT_BRAND.fullName}`,
+  classes: `พร้อมจัดการรุ่นแข่งขันของ${EVENT_BRAND.fullName}`,
+  applicants: `พร้อมแสดงรายชื่อผู้สมัคร${EVENT_BRAND.fullName}`,
+  summary: `พร้อมสร้างหน้าสรุปและพิมพ์เอกสาร${EVENT_BRAND.fullName}`,
+};
+const REGISTRATIONS_PER_PAGE = 5;
 
 function getPrintColumnDefinition(id) {
   return PRINT_COLUMN_DEFINITIONS.find((definition) => definition.id === id);
@@ -150,6 +166,7 @@ function saveBracketSelectionsPreference() {
 const state = {
   classes: [],
   registrations: [],
+  registrationPage: 1,
   maxVehicles: 20,
   editingId: null,
   editingClassName: null,
@@ -160,21 +177,27 @@ const state = {
 };
 
 const elements = {
+  addClassEntryButton: document.querySelector("#addClassEntryButton"),
   applicantCount: document.querySelector("#applicantCount"),
-  bikeNumbersContainer: document.querySelector("#bikeNumbersContainer"),
   cancelEditButton: document.querySelector("#cancelEditButton"),
+  classEntriesContainer: document.querySelector("#classEntriesContainer"),
   classCountBadge: document.querySelector("#classCountBadge"),
   classForm: document.querySelector("#classForm"),
   classList: document.querySelector("#classList"),
+  closePrintModalButton: document.querySelector("#closePrintModalButton"),
+  closePrintModalButtonSecondary: document.querySelector("#closePrintModalButtonSecondary"),
   formModeBadge: document.querySelector("#formModeBadge"),
   newClassInput: document.querySelector("#newClassInput"),
+  openPrintModalButton: document.querySelector("#openPrintModalButton"),
   printAllButton: document.querySelector("#printAllButton"),
   printColumnList: document.querySelector("#printColumnList"),
   printColumnSummary: document.querySelector("#printColumnSummary"),
+  printModal: document.querySelector("#printModal"),
+  printModalStatus: document.querySelector("#printModalStatus"),
   printSummaryButton: document.querySelector("#printSummaryButton"),
-  raceClass: document.querySelector("#raceClass"),
   registrationForm: document.querySelector("#registrationForm"),
   registrationList: document.querySelector("#registrationList"),
+  registrationPagination: document.querySelector("#registrationPagination"),
   resetPrintColumnsButton: document.querySelector("#resetPrintColumnsButton"),
   searchInput: document.querySelector("#searchInput"),
   statusBanner: document.querySelector("#statusBanner"),
@@ -183,9 +206,41 @@ const elements = {
   summaryPreview: document.querySelector("#summaryPreview"),
   summaryPreviewMeta: document.querySelector("#summaryPreviewMeta"),
   summaryTemplateList: document.querySelector("#summaryTemplateList"),
-  vehicleCount: document.querySelector("#vehicleCount"),
   vehicleCountStat: document.querySelector("#vehicleCountStat"),
 };
+
+function hasElement(key) {
+  return Boolean(elements[key]);
+}
+
+function getDefaultStatusMessage() {
+  return DEFAULT_STATUS_MESSAGES[currentPage] || DEFAULT_STATUS_MESSAGES.registration;
+}
+
+function getRequestedRegistrationId() {
+  const registrationId = new URLSearchParams(window.location.search).get("edit");
+  return registrationId ? registrationId.trim() : "";
+}
+
+function clearRequestedRegistrationId() {
+  if (currentPage !== "registration") {
+    return;
+  }
+
+  const url = new URL(window.location.href);
+  if (!url.searchParams.has("edit")) {
+    return;
+  }
+
+  url.searchParams.delete("edit");
+  const nextSearch = url.searchParams.toString();
+  const nextUrl = `${url.pathname}${nextSearch ? `?${nextSearch}` : ""}${url.hash}`;
+  window.history.replaceState({}, "", nextUrl);
+}
+
+function openRegistrationEditor(registrationId) {
+  window.location.assign(`/index.html?edit=${encodeURIComponent(registrationId)}`);
+}
 
 function escapeHtml(value) {
   return String(value)
@@ -196,8 +251,165 @@ function escapeHtml(value) {
     .replaceAll("'", "&#39;");
 }
 
+function getEventLogoUrl() {
+  return new URL(EVENT_BRAND.logoPath, window.location.origin).toString();
+}
+
+function buildPrintBrandBanner(modeLabel) {
+  return `
+    <div class="print-banner">
+      <div class="print-banner-copy">
+        <img
+          class="print-logo"
+          src="${escapeHtml(getEventLogoUrl())}"
+          alt="${escapeHtml(EVENT_BRAND.fullName)}"
+        />
+        <div class="print-brand-text">
+          <p class="print-kicker">${escapeHtml(EVENT_BRAND.header)}</p>
+          <div class="print-lockup">${escapeHtml(EVENT_BRAND.name)}</div>
+          <div class="print-subtitle">${escapeHtml(EVENT_BRAND.subtitle)}</div>
+        </div>
+      </div>
+      <div class="print-chip">${escapeHtml(modeLabel)}</div>
+    </div>
+  `;
+}
+
+function buildSummarySheetBrand() {
+  return `
+    <div class="summary-sheet-brand">
+      <img
+        class="summary-sheet-brand-logo"
+        src="${escapeHtml(getEventLogoUrl())}"
+        alt="${escapeHtml(EVENT_BRAND.fullName)}"
+      />
+      <div class="summary-sheet-brand-copy">
+        <div class="summary-sheet-brand-name">${escapeHtml(EVENT_BRAND.name)}</div>
+        <div class="summary-sheet-brand-subtitle">${escapeHtml(EVENT_BRAND.subtitle)}</div>
+      </div>
+    </div>
+  `;
+}
+
 function normalizeText(value) {
   return String(value || "").trim().toLowerCase();
+}
+
+function getRawRegistrationEntries(registration) {
+  if (Array.isArray(registration?.entries) && registration.entries.length > 0) {
+    return registration.entries;
+  }
+
+  if (
+    registration &&
+    (registration.raceClass ||
+      registration.vehicleCount ||
+      Array.isArray(registration.bikeNumbers))
+  ) {
+    return [
+      {
+        raceClass: registration.raceClass,
+        vehicleCount: registration.vehicleCount,
+        bikeNumbers: registration.bikeNumbers,
+      },
+    ];
+  }
+
+  return [];
+}
+
+function normalizeVehicleCount(value, fallbackCount = 1) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    return clampVehicleCount(fallbackCount);
+  }
+
+  return clampVehicleCount(parsed);
+}
+
+function normalizeRegistrationEntry(entry, index = 0, registrationId = "") {
+  const rawBikeNumbers = Array.isArray(entry?.bikeNumbers)
+    ? entry.bikeNumbers.map((value) => String(value ?? ""))
+    : [];
+  const fallbackCount = rawBikeNumbers.length > 0 ? rawBikeNumbers.length : 1;
+  const vehicleCount = normalizeVehicleCount(entry?.vehicleCount, fallbackCount);
+  const bikeNumbers = Array.from({ length: vehicleCount }, (_, bikeIndex) => {
+    return rawBikeNumbers[bikeIndex] ?? "";
+  });
+
+  return {
+    id: entry?.id || `${registrationId || "registration"}-entry-${index + 1}`,
+    raceClass: String(entry?.raceClass || ""),
+    vehicleCount,
+    bikeNumbers,
+  };
+}
+
+function normalizeRegistration(registration) {
+  const normalized = registration && typeof registration === "object" ? registration : {};
+  const registrationId = String(normalized.id || "");
+  const entries = getRawRegistrationEntries(normalized)
+    .map((entry, index) => normalizeRegistrationEntry(entry, index, registrationId))
+    .filter((entry) => entry.raceClass);
+
+  return {
+    ...normalized,
+    id: registrationId,
+    applicantName: String(normalized.applicantName || ""),
+    address: String(normalized.address || ""),
+    contactPhone: String(normalized.contactPhone || ""),
+    entries,
+  };
+}
+
+function buildRegistrationViewModel(registration) {
+  const normalized = normalizeRegistration(registration);
+  const allBikeNumbers = normalized.entries.flatMap((entry) => {
+    return entry.bikeNumbers.map((value) => value.trim()).filter(Boolean);
+  });
+  const totalVehicleCount = normalized.entries.reduce((total, entry) => {
+    return total + entry.vehicleCount;
+  }, 0);
+
+  return {
+    ...normalized,
+    allBikeNumbers,
+    totalVehicleCount,
+  };
+}
+
+function createEmptyRegistrationEntry() {
+  return {
+    raceClass: "",
+    vehicleCount: 1,
+    bikeNumbers: [""],
+  };
+}
+
+function getRegistrationClassNames(registration) {
+  return (registration.entries || [])
+    .map((entry) => String(entry.raceClass || "").trim())
+    .filter(Boolean);
+}
+
+function getRegistrationAllBikeNumbers(registration) {
+  if (Array.isArray(registration.allBikeNumbers)) {
+    return registration.allBikeNumbers;
+  }
+
+  return (registration.entries || []).flatMap((entry) => {
+    return (entry.bikeNumbers || []).map((value) => value.trim()).filter(Boolean);
+  });
+}
+
+function getRegistrationTotalVehicleCount(registration) {
+  if (Number.isInteger(registration.totalVehicleCount)) {
+    return registration.totalVehicleCount;
+  }
+
+  return (registration.entries || []).reduce((total, entry) => {
+    return total + Number(entry.vehicleCount || 0);
+  }, 0);
 }
 
 function shortenText(value, maxLength) {
@@ -232,14 +444,23 @@ async function api(path, options = {}) {
   return payload;
 }
 
-function setStatus(message, tone = "success") {
-  elements.statusBanner.textContent = message;
-  if (tone === "success") {
-    elements.statusBanner.removeAttribute("data-tone");
+function applyStatusState(target, message, tone) {
+  if (!target) {
     return;
   }
 
-  elements.statusBanner.setAttribute("data-tone", tone);
+  target.textContent = message;
+  if (tone === "success") {
+    target.removeAttribute("data-tone");
+    return;
+  }
+
+  target.setAttribute("data-tone", tone);
+}
+
+function setStatus(message, tone = "success") {
+  applyStatusState(elements.statusBanner, message, tone);
+  applyStatusState(elements.printModalStatus, message, tone);
 }
 
 function formatDate(value) {
@@ -254,13 +475,17 @@ function formatDate(value) {
 }
 
 function updateSummaryStats() {
-  elements.applicantCount.textContent = state.registrations.length.toString();
+  if (hasElement("applicantCount")) {
+    elements.applicantCount.textContent = state.registrations.length.toString();
+  }
 
   const totalVehicles = state.registrations.reduce((total, item) => {
-    return total + Number(item.vehicleCount || 0);
+    return total + getRegistrationTotalVehicleCount(item);
   }, 0);
 
-  elements.vehicleCountStat.textContent = totalVehicles.toString();
+  if (hasElement("vehicleCountStat")) {
+    elements.vehicleCountStat.textContent = totalVehicles.toString();
+  }
 }
 
 function sortRegistrationsForSummary(registrations) {
@@ -270,32 +495,163 @@ function sortRegistrationsForSummary(registrations) {
 }
 
 function findMatchingClassName(className) {
-  return state.classes.find((item) => normalizeText(item) === normalizeText(className));
+  return state.classes.find((item) => normalizeText(item) === normalizeText(className)) || "";
 }
 
-function selectRaceClass(className) {
-  const match = findMatchingClassName(className);
-  elements.raceClass.value = match || "";
+function normalizeDraftRegistrationEntry(entry) {
+  const rawBikeNumbers = Array.isArray(entry?.bikeNumbers)
+    ? entry.bikeNumbers.map((value) => String(value ?? ""))
+    : [];
+  const fallbackCount = rawBikeNumbers.length > 0 ? rawBikeNumbers.length : 1;
+  const vehicleCount = normalizeVehicleCount(entry?.vehicleCount, fallbackCount);
+  const bikeNumbers = Array.from({ length: vehicleCount }, (_, bikeIndex) => {
+    return rawBikeNumbers[bikeIndex] ?? "";
+  });
+
+  return {
+    raceClass: findMatchingClassName(entry?.raceClass) || String(entry?.raceClass || ""),
+    vehicleCount,
+    bikeNumbers,
+  };
 }
 
-function renderClassOptions(preferredValue = elements.raceClass.value) {
+function collectRegistrationEntries() {
+  if (!hasElement("classEntriesContainer")) {
+    return [];
+  }
+
+  const entryCards = [
+    ...elements.classEntriesContainer.querySelectorAll(".class-entry-card[data-entry-index]"),
+  ];
+  return entryCards.map((card) => {
+    const raceClass = card.querySelector("[data-entry-field='raceClass']")?.value || "";
+    const vehicleCount = card.querySelector("[data-entry-field='vehicleCount']")?.value || 1;
+    const bikeNumbers = [...card.querySelectorAll("[data-entry-field='bikeNumber']")].map(
+      (input) => input.value,
+    );
+
+    return normalizeDraftRegistrationEntry({ raceClass, vehicleCount, bikeNumbers });
+  });
+}
+
+function buildClassEntryOptions(selectedValue) {
+  const normalizedSelectedValue = normalizeText(selectedValue);
   const options = state.classes
     .map((className) => {
-      return `<option value="${escapeHtml(className)}">${escapeHtml(className)}</option>`;
+      const isSelected = normalizeText(className) === normalizedSelectedValue;
+      return `<option value="${escapeHtml(className)}"${isSelected ? " selected" : ""}>${escapeHtml(className)}</option>`;
     })
     .join("");
 
-  elements.raceClass.innerHTML = `<option value="">เลือกรุ่นแข่งขัน</option>${options}`;
-  selectRaceClass(preferredValue);
+  return `<option value="">เลือกรุ่นแข่งขัน</option>${options}`;
+}
+
+function renderClassEntryBikeInputs(entry, entryIndex) {
+  return Array.from({ length: entry.vehicleCount }, (_, bikeIndex) => {
+    const value = entry.bikeNumbers[bikeIndex] || "";
+    return `
+      <div class="bike-input">
+        <label for="entry-${entryIndex + 1}-bike-${bikeIndex + 1}">คันที่ ${bikeIndex + 1}</label>
+        <input
+          id="entry-${entryIndex + 1}-bike-${bikeIndex + 1}"
+          data-entry-field="bikeNumber"
+          type="text"
+          maxlength="20"
+          placeholder="หมายเลขรถ"
+          value="${escapeHtml(value)}"
+          required
+        />
+      </div>
+    `;
+  }).join("");
+}
+
+function renderClassEntries(entries = [createEmptyRegistrationEntry()]) {
+  if (!hasElement("classEntriesContainer")) {
+    return;
+  }
+
+  const normalizedEntries = (entries.length > 0 ? entries : [createEmptyRegistrationEntry()])
+    .map((entry) => normalizeDraftRegistrationEntry(entry));
+
+  elements.classEntriesContainer.innerHTML = normalizedEntries
+    .map((entry, index) => {
+      return `
+        <section class="class-entry-card" data-entry-index="${index}">
+          <div class="class-entry-card-header">
+            <div class="class-entry-card-copy">
+              <strong>รุ่นที่สมัคร ${index + 1}</strong>
+              <span>กำหนดรุ่น จำนวนรถ และหมายเลขรถแยกกันในแต่ละรุ่น</span>
+            </div>
+            <button
+              class="button button-danger button-small"
+              type="button"
+              data-action="remove-class-entry"
+              data-entry-index="${index}"
+              ${normalizedEntries.length === 1 ? "disabled" : ""}
+            >
+              ลบรุ่น
+            </button>
+          </div>
+
+          <div class="field-grid class-entry-grid">
+            <label class="field">
+              <span>รุ่นที่สมัคร</span>
+              <select data-entry-field="raceClass" required>
+                ${buildClassEntryOptions(entry.raceClass)}
+              </select>
+            </label>
+
+            <label class="field">
+              <span>จำนวนรถที่จะลงแข่ง</span>
+              <input
+                data-entry-field="vehicleCount"
+                type="number"
+                min="1"
+                max="${state.maxVehicles}"
+                value="${entry.vehicleCount}"
+                required
+              />
+            </label>
+          </div>
+
+          <div class="field">
+            <div class="field-heading">
+              <span>หมายเลขรถของรุ่นนี้</span>
+              <small>ระบบจะช่วยเช็กเลขรถซ้ำข้ามทีมให้อัตโนมัติ</small>
+            </div>
+            <div class="bike-grid class-entry-bike-grid">
+              ${renderClassEntryBikeInputs(entry, index)}
+            </div>
+          </div>
+        </section>
+      `;
+    })
+    .join("");
+}
+
+function renderClassOptions() {
+  if (!hasElement("classEntriesContainer")) {
+    return;
+  }
+
+  const currentEntries = collectRegistrationEntries();
+  renderClassEntries(currentEntries.length > 0 ? currentEntries : [createEmptyRegistrationEntry()]);
 }
 
 function getClassUsageCount(className) {
-  return state.registrations.filter((item) => {
-    return normalizeText(item.raceClass) === normalizeText(className);
-  }).length;
+  return state.registrations.reduce((count, item) => {
+    return count + (item.entries || []).filter((entry) => {
+      return normalizeText(entry.raceClass) === normalizeText(className);
+    }).length;
+  }, 0);
 }
 
 function renderClassList() {
+  if (!hasElement("classList") || !hasElement("classCountBadge")) {
+    return;
+  }
+
   elements.classCountBadge.textContent = `${state.classes.length} รุ่น`;
 
   if (state.classes.length === 0) {
@@ -388,6 +744,10 @@ function getPrintColumnsInUse() {
 }
 
 function renderPrintColumnConfigurator() {
+  if (!hasElement("printColumnSummary") || !hasElement("printColumnList")) {
+    return;
+  }
+
   const activeColumns = getPrintColumnsInUse()
     .map((item) => getPrintColumnDefinition(item.id))
     .filter(Boolean);
@@ -488,6 +848,35 @@ function resetPrintColumns() {
   setStatus("รีเซ็ตคอลัมน์สำหรับพิมพ์กลับเป็นค่าเริ่มต้นแล้ว");
 }
 
+function getPrintModalReadyMessage() {
+  return `พร้อมพิมพ์รายชื่อผู้สมัครรวมของ${EVENT_BRAND.fullName}`;
+}
+
+function openPrintModal() {
+  if (!hasElement("printModal")) {
+    return;
+  }
+
+  renderPrintColumnConfigurator();
+  applyStatusState(elements.printModalStatus, getPrintModalReadyMessage(), "success");
+  elements.printModal.hidden = false;
+  document.body.classList.add("modal-open");
+  elements.closePrintModalButton?.focus();
+}
+
+function closePrintModal(restoreFocus = true) {
+  if (!hasElement("printModal") || elements.printModal.hidden) {
+    return;
+  }
+
+  elements.printModal.hidden = true;
+  document.body.classList.remove("modal-open");
+  applyStatusState(elements.printModalStatus, getPrintModalReadyMessage(), "success");
+  if (restoreFocus) {
+    elements.openPrintModalButton?.focus();
+  }
+}
+
 function syncSummarySelection() {
   if (state.classes.length === 0) {
     state.selectedSummaryClass = "";
@@ -500,6 +889,10 @@ function syncSummarySelection() {
 }
 
 function renderSummaryClassOptions() {
+  if (!hasElement("summaryClassSelect")) {
+    return;
+  }
+
   if (state.classes.length === 0) {
     elements.summaryClassSelect.innerHTML = `<option value="">ยังไม่มีรุ่นแข่งขัน</option>`;
     elements.summaryClassSelect.value = "";
@@ -516,6 +909,10 @@ function renderSummaryClassOptions() {
 }
 
 function renderSummaryTemplates() {
+  if (!hasElement("summaryTemplateList")) {
+    return;
+  }
+
   elements.summaryTemplateList.innerHTML = SUMMARY_TEMPLATES.map((template) => {
     const isActive = template.id === state.selectedSummaryTemplate;
     return `
@@ -532,11 +929,24 @@ function renderSummaryTemplates() {
 }
 
 function getRegistrationsForClass(className) {
-  return sortRegistrationsForSummary(
-    state.registrations.filter((item) => {
-      return normalizeText(item.raceClass) === normalizeText(className);
-    }),
-  );
+  const entries = state.registrations.flatMap((registration) => {
+    return (registration.entries || [])
+      .filter((entry) => normalizeText(entry.raceClass) === normalizeText(className))
+      .map((entry, index) => {
+        return {
+          ...entry,
+          id: entry.id || `${registration.id}-entry-${index + 1}`,
+          registrationId: registration.id,
+          applicantName: registration.applicantName,
+          address: registration.address,
+          contactPhone: registration.contactPhone,
+          createdAt: registration.createdAt,
+          updatedAt: registration.updatedAt,
+        };
+      });
+  });
+
+  return sortRegistrationsForSummary(entries);
 }
 
 function getBikeEntriesForClass(className) {
@@ -549,7 +959,7 @@ function getBikeEntriesForClass(className) {
       return {
         applicantName: registration.applicantName,
         bikeNumber,
-        registrationId: registration.id,
+        registrationId: registration.registrationId,
         contactPhone: registration.contactPhone,
         order: `${registration.createdAt || ""}-${index}`,
       };
@@ -584,6 +994,7 @@ function buildSummaryTable(columns, rows, minimumRows, className, extraClass = "
 
   return `
     <section class="summary-sheet ${extraClass}">
+      ${buildSummarySheetBrand()}
       <div class="summary-sheet-title">รุ่น ${escapeHtml(className || "-")}</div>
       <table class="summary-sheet-table">
         <colgroup>${colgroup}</colgroup>
@@ -719,23 +1130,41 @@ function buildBracketPageGroups(rounds) {
     return [];
   }
 
+  const maxColumnsPerPage = rounds[0].count >= 64 ? 3 : 4;
+  if (rounds.length <= maxColumnsPerPage) {
+    return [{
+      startIndex: 0,
+      rounds: [...rounds],
+    }];
+  }
+
+  const overlapColumns = 1;
+  const uniqueColumnsPerAdditionalPage = maxColumnsPerPage - overlapColumns;
+  const pageCount = Math.max(
+    1,
+    Math.ceil((rounds.length - 1) / uniqueColumnsPerAdditionalPage),
+  );
+  const displayedColumnCount = rounds.length + ((pageCount - 1) * overlapColumns);
+  const baseColumnsPerPage = Math.floor(displayedColumnCount / pageCount);
+  const extraColumns = displayedColumnCount % pageCount;
+  const columnsPerPage = Array.from({ length: pageCount }, (_, index) => {
+    return baseColumnsPerPage + (index < extraColumns ? 1 : 0);
+  });
+
   const groups = [];
-  const maxColumnsPerPage = rounds[0].count >= 32 ? 3 : 4;
   let startIndex = 0;
 
-  while (startIndex < rounds.length) {
-    const endIndex = Math.min(rounds.length - 1, startIndex + (maxColumnsPerPage - 1));
+  columnsPerPage.forEach((columnCount, pageIndex) => {
+    const endIndex = Math.min(rounds.length - 1, startIndex + columnCount - 1);
     groups.push({
       startIndex,
       rounds: rounds.slice(startIndex, endIndex + 1),
     });
 
-    if (endIndex === rounds.length - 1) {
-      break;
+    if (pageIndex < columnsPerPage.length - 1) {
+      startIndex = endIndex;
     }
-
-    startIndex = endIndex;
-  }
+  });
 
   return groups;
 }
@@ -744,6 +1173,13 @@ function createEmptyBracketSelections(rounds) {
   return rounds.map((round) => {
     return Array.from({ length: round.count }, () => "");
   });
+}
+
+function createEmptyBracketState(config) {
+  return {
+    rounds: createEmptyBracketSelections(config.rounds),
+    thirdPlaceWinner: "",
+  };
 }
 
 function getBracketConfig(className) {
@@ -761,7 +1197,15 @@ function getBracketConfig(className) {
 }
 
 function getStoredBracketSelections(className) {
-  return state.bracketSelections[normalizeText(className)]?.rounds || null;
+  return state.bracketSelections[normalizeText(className)] || null;
+}
+
+function getFinalMatchRoundIndex(config) {
+  return config.rounds.findIndex((round) => round.count === 2);
+}
+
+function hasThirdPlaceMatch(config) {
+  return getFinalMatchRoundIndex(config) > 0;
 }
 
 function getAllowedBracketOptionIds(config, rounds, roundIndex, slotIndex) {
@@ -775,7 +1219,56 @@ function getAllowedBracketOptionIds(config, rounds, roundIndex, slotIndex) {
   return [...new Set(pair)];
 }
 
-function sanitizeBracketSelections(config, inputRounds) {
+function getThirdPlaceParticipantIds(config, rounds) {
+  const finalRoundIndex = getFinalMatchRoundIndex(config);
+  if (finalRoundIndex <= 0) {
+    return ["", ""];
+  }
+
+  const semifinalists = rounds[finalRoundIndex - 1] || [];
+  const finalists = rounds[finalRoundIndex] || [];
+  return Array.from({ length: 2 }, (_, matchIndex) => {
+    const pair = semifinalists
+      .slice(matchIndex * 2, matchIndex * 2 + 2)
+      .filter((entryId) => config.entryMap.has(entryId));
+
+    if (pair.length < 2) {
+      return "";
+    }
+
+    const winnerId = finalists[matchIndex] || "";
+    if (!winnerId || !pair.includes(winnerId)) {
+      return "";
+    }
+
+    return pair.find((entryId) => entryId !== winnerId) || "";
+  });
+}
+
+function getThirdPlaceOptionIds(config, rounds) {
+  const participantIds = getThirdPlaceParticipantIds(config, rounds).filter(Boolean);
+  if (participantIds.length !== 2 || new Set(participantIds).size !== 2) {
+    return [];
+  }
+
+  return participantIds;
+}
+
+function getThirdPlaceLoserId(config, rounds, winnerId) {
+  const optionIds = getThirdPlaceOptionIds(config, rounds);
+  if (!optionIds.includes(winnerId)) {
+    return "";
+  }
+
+  return optionIds.find((entryId) => entryId !== winnerId) || "";
+}
+
+function sanitizeBracketState(config, inputState) {
+  const inputRounds = Array.isArray(inputState)
+    ? inputState
+    : Array.isArray(inputState?.rounds)
+      ? inputState.rounds
+      : [];
   const rounds = createEmptyBracketSelections(config.rounds);
 
   if (Array.isArray(inputRounds)) {
@@ -804,36 +1297,60 @@ function sanitizeBracketSelections(config, inputRounds) {
     });
   }
 
-  return rounds;
+  const storedThirdPlaceWinner =
+    typeof inputState?.thirdPlaceWinner === "string"
+      ? inputState.thirdPlaceWinner
+      : "";
+  const thirdPlaceWinner = getThirdPlaceOptionIds(config, rounds).includes(storedThirdPlaceWinner)
+    ? storedThirdPlaceWinner
+    : "";
+
+  return {
+    rounds,
+    thirdPlaceWinner,
+  };
 }
 
 function getBracketRecord(className) {
   const config = getBracketConfig(className);
-  const rounds = sanitizeBracketSelections(config, getStoredBracketSelections(className));
-  return { config, rounds };
+  const bracketState = sanitizeBracketState(config, getStoredBracketSelections(className));
+  return {
+    config,
+    rounds: bracketState.rounds,
+    thirdPlaceWinner: bracketState.thirdPlaceWinner,
+    thirdPlaceParticipantIds: getThirdPlaceParticipantIds(config, bracketState.rounds),
+    thirdPlaceOptionIds: getThirdPlaceOptionIds(config, bracketState.rounds),
+    thirdPlaceLoserId: getThirdPlaceLoserId(
+      config,
+      bracketState.rounds,
+      bracketState.thirdPlaceWinner,
+    ),
+  };
 }
 
-function persistBracketSelections(className, rounds) {
-  state.bracketSelections[normalizeText(className)] = { rounds };
+function persistBracketSelections(className, bracketState) {
+  state.bracketSelections[normalizeText(className)] = bracketState;
   saveBracketSelectionsPreference();
 }
 
 function resetBracketSelections(className) {
   const { config } = getBracketRecord(className);
-  persistBracketSelections(className, createEmptyBracketSelections(config.rounds));
+  persistBracketSelections(className, createEmptyBracketState(config));
 }
 
 function setBracketSelection(className, roundIndex, slotIndex, value) {
-  const { config, rounds } = getBracketRecord(className);
+  const { config, rounds, thirdPlaceWinner } = getBracketRecord(className);
   if (!config.rounds[roundIndex]) {
     return;
   }
 
+  const nextRounds = rounds.map((round) => [...round]);
+
   if (roundIndex === 0) {
-    rounds[0][slotIndex] = config.entryMap.has(value) ? value : "";
+    nextRounds[0][slotIndex] = config.entryMap.has(value) ? value : "";
 
     if (value) {
-      rounds[0] = rounds[0].map((currentValue, currentIndex) => {
+      nextRounds[0] = nextRounds[0].map((currentValue, currentIndex) => {
         if (currentIndex !== slotIndex && currentValue === value) {
           return "";
         }
@@ -842,11 +1359,28 @@ function setBracketSelection(className, roundIndex, slotIndex, value) {
       });
     }
   } else {
-    const allowedIds = getAllowedBracketOptionIds(config, rounds, roundIndex, slotIndex);
-    rounds[roundIndex][slotIndex] = allowedIds.includes(value) ? value : "";
+    const allowedIds = getAllowedBracketOptionIds(config, nextRounds, roundIndex, slotIndex);
+    nextRounds[roundIndex][slotIndex] = allowedIds.includes(value) ? value : "";
   }
 
-  persistBracketSelections(className, sanitizeBracketSelections(config, rounds));
+  persistBracketSelections(
+    className,
+    sanitizeBracketState(config, {
+      rounds: nextRounds,
+      thirdPlaceWinner,
+    }),
+  );
+}
+
+function setThirdPlaceWinner(className, value) {
+  const { config, rounds } = getBracketRecord(className);
+  persistBracketSelections(
+    className,
+    sanitizeBracketState(config, {
+      rounds: rounds.map((round) => [...round]),
+      thirdPlaceWinner: value,
+    }),
+  );
 }
 
 function getBracketEntryLabel(config, entryId, maxLength = 22) {
@@ -887,6 +1421,10 @@ function buildNextRoundCenters(previousCenters) {
   return centers;
 }
 
+function snapBracketCoordinate(value) {
+  return Math.round(value * 2) / 2;
+}
+
 function getBracketPageLayouts(pageGroup, topY, bottomY) {
   const centersByRound = [];
   centersByRound[0] = buildEvenlySpacedCenters(pageGroup.rounds[0].count, topY, bottomY);
@@ -895,34 +1433,121 @@ function getBracketPageLayouts(pageGroup, topY, bottomY) {
     centersByRound[index] = buildNextRoundCenters(centersByRound[index - 1]);
   }
 
+  const firstRoundCenters = centersByRound[0];
+  const firstRoundStep = firstRoundCenters.length > 1
+    ? Math.abs(firstRoundCenters[1] - firstRoundCenters[0])
+    : 72;
+  const sharedBoxHeight = Math.max(22, Math.min(50, firstRoundStep - 4, firstRoundStep * 0.92));
+  const sharedFontSize = sharedBoxHeight >= 46 ? 10.25 : sharedBoxHeight >= 38 ? 10 : 9.25;
+
   return pageGroup.rounds.map((round, index) => {
-    const centers = centersByRound[index];
-    const localStep = centers.length > 1
-      ? Math.abs(centers[1] - centers[0])
-      : index > 0 && centersByRound[index - 1].length > 1
-        ? Math.abs(centersByRound[index - 1][1] - centersByRound[index - 1][0])
-        : 96;
-    const boxHeight = Math.max(18, Math.min(34, localStep * 0.55));
-    const fontSize = Math.max(8, Math.min(12, boxHeight * 0.62));
+    const centers = centersByRound[index].map((value) => snapBracketCoordinate(value));
 
     return {
       ...round,
       centers,
-      boxHeight,
-      fontSize,
+      boxHeight: snapBracketCoordinate(sharedBoxHeight),
+      fontSize: sharedFontSize,
     };
   });
 }
 
 function renderBracketPairConnector(startX, topY, bottomY, nextX, nextY) {
-  const elbowX = startX + (nextX - startX) / 2;
-  const mergeY = (topY + bottomY) / 2;
+  const sourceX = snapBracketCoordinate(startX);
+  const targetX = snapBracketCoordinate(nextX);
+  const gap = Math.max(20, targetX - sourceX);
+  const branchStub = snapBracketCoordinate(Math.min(26, Math.max(16, gap * 0.28)));
+  const elbowX = snapBracketCoordinate(sourceX + branchStub);
+  const mergeY = snapBracketCoordinate((topY + bottomY) / 2);
+  const topYAligned = snapBracketCoordinate(topY);
+  const bottomYAligned = snapBracketCoordinate(bottomY);
+  const nextYAligned = snapBracketCoordinate(nextY);
 
   return [
-    `<path d="M ${startX} ${topY} H ${elbowX} V ${bottomY}" />`,
-    `<path d="M ${startX} ${bottomY} H ${elbowX}" />`,
-    `<path d="M ${elbowX} ${mergeY} V ${nextY} H ${nextX}" />`,
+    `<path d="M ${sourceX} ${topYAligned} H ${elbowX} V ${bottomYAligned}" />`,
+    `<path d="M ${sourceX} ${bottomYAligned} H ${elbowX}" />`,
+    `<path d="M ${elbowX} ${mergeY} V ${nextYAligned} H ${targetX}" />`,
   ].join("");
+}
+
+function getBracketPageMetrics(columnCount, viewBoxWidth, leftPadding, rightPadding) {
+  const usableWidth = viewBoxWidth - leftPadding - rightPadding;
+  const connectorGap = columnCount >= 4 ? 66 : columnCount === 3 ? 92 : columnCount === 2 ? 118 : 0;
+  const maxBoxWidth = columnCount >= 4 ? 212 : columnCount === 3 ? 288 : columnCount === 2 ? 432 : 540;
+  const rawBoxWidth = columnCount > 1
+    ? (usableWidth - connectorGap * (columnCount - 1)) / columnCount
+    : usableWidth;
+  const boxWidth = snapBracketCoordinate(Math.min(maxBoxWidth, rawBoxWidth));
+  const totalWidth = columnCount > 1
+    ? (boxWidth * columnCount) + connectorGap * (columnCount - 1)
+    : boxWidth;
+  const startX = snapBracketCoordinate(leftPadding + Math.max(0, (usableWidth - totalWidth) / 2));
+  const xStep = snapBracketCoordinate(columnCount > 1 ? boxWidth + connectorGap : 0);
+
+  return {
+    boxWidth,
+    startX,
+    xStep,
+  };
+}
+
+function getBracketSlotStyle(x, centerY, boxWidth, boxHeight, viewBoxWidth, viewBoxHeight) {
+  return [
+    `left:${(x / viewBoxWidth) * 100}%`,
+    `top:${((centerY - boxHeight / 2) / viewBoxHeight) * 100}%`,
+    `width:${(boxWidth / viewBoxWidth) * 100}%`,
+    `height:${(boxHeight / viewBoxHeight) * 100}%`,
+  ].join(";");
+}
+
+function renderBracketSlotShape(x, centerY, boxWidth, boxHeight, slotClassName = "") {
+  const shapeClasses = slotClassName
+    .split(/\s+/)
+    .filter((className) => className && className !== "bracket-slot")
+    .join(" ");
+  const shapeClassName = `bracket-slot-shape${shapeClasses ? ` ${shapeClasses}` : ""}`;
+  const y = snapBracketCoordinate(centerY - boxHeight / 2);
+  const radius = snapBracketCoordinate(Math.min(14, boxHeight / 3));
+
+  return `
+    <rect
+      class="${shapeClassName}"
+      x="${snapBracketCoordinate(x)}"
+      y="${y}"
+      width="${snapBracketCoordinate(boxWidth)}"
+      height="${snapBracketCoordinate(boxHeight)}"
+      rx="${radius}"
+      ry="${radius}"
+    />
+  `;
+}
+
+function buildBracketValueSlotMarkup(label, x, centerY, boxWidth, boxHeight, fontSize, slotClassName, viewBoxWidth, viewBoxHeight) {
+  return `
+    <div class="${slotClassName}" style="${getBracketSlotStyle(x, centerY, boxWidth, boxHeight, viewBoxWidth, viewBoxHeight)}">
+      <div class="bracket-slot-value" style="font-size:${fontSize}px">${escapeHtml(label)}</div>
+    </div>
+  `;
+}
+
+function buildBracketSelectSlotMarkup(optionsHtml, selectedLabel, selectAttributes, x, centerY, boxWidth, boxHeight, fontSize, slotClassName, viewBoxWidth, viewBoxHeight) {
+  return `
+    <div class="${slotClassName}" style="${getBracketSlotStyle(x, centerY, boxWidth, boxHeight, viewBoxWidth, viewBoxHeight)}">
+      <select
+        class="bracket-slot-select"
+        style="font-size:${fontSize}px"
+        ${selectAttributes}
+      >
+        ${optionsHtml}
+      </select>
+      <div class="bracket-slot-display" style="font-size:${fontSize}px">${escapeHtml(selectedLabel)}</div>
+    </div>
+  `;
+}
+
+function getBracketDisplayLabel(config, entryId) {
+  const entry = config.entryMap.get(entryId);
+  return entry ? shortenText(entry.shortLabel, 84) : "";
 }
 
 function buildBracketSelectOptions(config, rounds, roundIndex, slotIndex) {
@@ -936,7 +1561,7 @@ function buildBracketSelectOptions(config, rounds, roundIndex, slotIndex) {
     );
 
     return [
-      `<option value="">เลือกทีม</option>`,
+      `<option value=""></option>`,
       ...config.entries.map((entry) => {
         const selected = entry.id === currentValue ? " selected" : "";
         const disabled = usedElsewhere.has(entry.id) ? " disabled" : "";
@@ -947,7 +1572,7 @@ function buildBracketSelectOptions(config, rounds, roundIndex, slotIndex) {
 
   const options = getAllowedBracketOptionIds(config, rounds, roundIndex, slotIndex);
   return [
-    `<option value="">เลือกผู้ชนะ</option>`,
+    `<option value=""></option>`,
     ...options.map((entryId) => {
       const selected = entryId === currentValue ? " selected" : "";
       return `<option value="${entryId}"${selected}>${escapeHtml(config.entryMap.get(entryId)?.shortLabel || "")}</option>`;
@@ -960,55 +1585,189 @@ function buildBracketSlotMarkup(config, rounds, absoluteRoundIndex, slotIndex, x
   const viewBoxHeight = 980;
   const selectedValue = rounds[absoluteRoundIndex][slotIndex] || "";
   const slotClassName = absoluteRoundIndex === rounds.length - 1 ? "bracket-slot champion" : "bracket-slot";
-  const style = [
-    `left:${(x / viewBoxWidth) * 100}%`,
-    `top:${((centerY - boxHeight / 2) / viewBoxHeight) * 100}%`,
-    `width:${(boxWidth / viewBoxWidth) * 100}%`,
-    `height:${(boxHeight / viewBoxHeight) * 100}%`,
-  ].join(";");
 
   if (interactive) {
-    return `
-      <div class="${slotClassName}" style="${style}">
-        <select
-          class="bracket-slot-select"
-          style="font-size:${fontSize}px"
-          data-action="bracket-select"
-          data-round-index="${absoluteRoundIndex}"
-          data-slot-index="${slotIndex}"
-        >
-          ${buildBracketSelectOptions(config, rounds, absoluteRoundIndex, slotIndex)}
-        </select>
-      </div>
-    `;
+    return buildBracketSelectSlotMarkup(
+      buildBracketSelectOptions(config, rounds, absoluteRoundIndex, slotIndex),
+      getBracketDisplayLabel(config, selectedValue),
+      `data-action="bracket-select" data-round-index="${absoluteRoundIndex}" data-slot-index="${slotIndex}"`,
+      x,
+      centerY,
+      boxWidth,
+      boxHeight,
+      fontSize,
+      slotClassName,
+      viewBoxWidth,
+      viewBoxHeight,
+    );
   }
 
-  return `
-    <div class="${slotClassName}" style="${style}">
-      <div class="bracket-slot-value" style="font-size:${fontSize}px">${escapeHtml(getBracketEntryLabel(config, selectedValue, 24))}</div>
-    </div>
-  `;
+  return buildBracketValueSlotMarkup(
+    getBracketDisplayLabel(config, selectedValue),
+    x,
+    centerY,
+    boxWidth,
+    boxHeight,
+    fontSize,
+    slotClassName,
+    viewBoxWidth,
+    viewBoxHeight,
+  );
+}
+
+function buildThirdPlaceSelectOptions(config, optionIds, currentValue) {
+  return [
+    `<option value=""></option>`,
+    ...optionIds.map((entryId) => {
+      const selected = entryId === currentValue ? " selected" : "";
+      return `<option value="${entryId}"${selected}>${escapeHtml(config.entryMap.get(entryId)?.shortLabel || "")}</option>`;
+    }),
+  ].join("");
+}
+
+function buildThirdPlaceMarkup(record, interactive, viewBoxWidth, viewBoxHeight) {
+  if (!hasThirdPlaceMatch(record.config)) {
+    return {
+      connectorsHtml: "",
+      shapesHtml: "",
+      overlaysHtml: "",
+    };
+  }
+
+  const sourceWidth = 212;
+  const resultWidth = 214;
+  const boxHeight = 48;
+  const fontSize = 10;
+  const leftX = 620;
+  const winnerX = 906;
+  const topCenterY = 790;
+  const bottomCenterY = 856;
+  const winnerCenterY = (topCenterY + bottomCenterY) / 2;
+  const resultClassName = "bracket-slot third-place-result";
+  const thirdPlaceWinnerLabel = getBracketDisplayLabel(record.config, record.thirdPlaceWinner);
+  const fourthPlaceLabel = getBracketDisplayLabel(record.config, record.thirdPlaceLoserId);
+
+  const titleStyle = [
+    `left:${(leftX / viewBoxWidth) * 100}%`,
+    `top:${((topCenterY - 72) / viewBoxHeight) * 100}%`,
+    `width:${((winnerX + resultWidth - leftX) / viewBoxWidth) * 100}%`,
+  ].join(";");
+  const rankStyle = [
+    `left:${(leftX / viewBoxWidth) * 100}%`,
+    `top:${((bottomCenterY + 50) / viewBoxHeight) * 100}%`,
+    `width:${((winnerX + resultWidth - leftX) / viewBoxWidth) * 100}%`,
+  ].join(";");
+
+  const participantSlots = record.thirdPlaceParticipantIds
+    .map((entryId, index) => {
+      const centerY = index === 0 ? topCenterY : bottomCenterY;
+      return buildBracketValueSlotMarkup(
+        getBracketDisplayLabel(record.config, entryId),
+        leftX,
+        centerY,
+        sourceWidth,
+        boxHeight,
+        fontSize,
+        "bracket-slot third-place-source",
+        viewBoxWidth,
+        viewBoxHeight,
+      );
+    })
+    .join("");
+
+  const participantShapes = record.thirdPlaceParticipantIds
+    .map((entryId, index) => {
+      const centerY = index === 0 ? topCenterY : bottomCenterY;
+      return renderBracketSlotShape(
+        leftX,
+        centerY,
+        sourceWidth,
+        boxHeight,
+        "bracket-slot third-place-source",
+      );
+    })
+    .join("");
+
+  const winnerSlot = interactive
+    ? buildBracketSelectSlotMarkup(
+      buildThirdPlaceSelectOptions(record.config, record.thirdPlaceOptionIds, record.thirdPlaceWinner),
+      thirdPlaceWinnerLabel,
+      `data-action="bracket-third-place-select"`,
+      winnerX,
+      winnerCenterY,
+      resultWidth,
+      boxHeight,
+      fontSize,
+      resultClassName,
+      viewBoxWidth,
+      viewBoxHeight,
+    )
+    : buildBracketValueSlotMarkup(
+      thirdPlaceWinnerLabel,
+      winnerX,
+      winnerCenterY,
+      resultWidth,
+      boxHeight,
+      fontSize,
+      resultClassName,
+      viewBoxWidth,
+      viewBoxHeight,
+    );
+
+  const winnerShape = renderBracketSlotShape(
+    winnerX,
+    winnerCenterY,
+    resultWidth,
+    boxHeight,
+    resultClassName,
+  );
+
+  return {
+    connectorsHtml: renderBracketPairConnector(
+      leftX + sourceWidth,
+      topCenterY,
+      bottomCenterY,
+      winnerX,
+      winnerCenterY,
+    ),
+    shapesHtml: `${participantShapes}${winnerShape}`,
+    overlaysHtml: `
+      <div class="bracket-third-place-title" style="${titleStyle}">ชิงอันดับ 3</div>
+      ${participantSlots}
+      ${winnerSlot}
+      <div class="bracket-third-place-ranks" style="${rankStyle}">
+        <div><strong>อันดับ 3:</strong> ${escapeHtml(thirdPlaceWinnerLabel)}</div>
+        <div><strong>อันดับ 4:</strong> ${escapeHtml(fourthPlaceLabel)}</div>
+      </div>
+    `,
+  };
 }
 
 function buildBracketPageMarkup(className, record, pageGroup, pageNumber, totalPages, interactive) {
   const viewBoxWidth = 1120;
   const viewBoxHeight = 980;
-  const leftX = 28;
+  const isFinalPage =
+    pageGroup.startIndex + pageGroup.rounds.length === record.config.rounds.length;
+  const includeThirdPlace = isFinalPage && hasThirdPlaceMatch(record.config);
+  const canvasPaddingTop = includeThirdPlace ? 120 : 114;
+  const leftPadding = 36;
   const columnCount = pageGroup.rounds.length;
-  const rightPadding = 32;
-  const boxWidth = columnCount >= 4 ? 168 : columnCount === 3 ? 204 : columnCount === 2 ? 240 : 276;
+  const rightPadding = 40;
+  const { boxWidth, startX, xStep } = getBracketPageMetrics(
+    columnCount,
+    viewBoxWidth,
+    leftPadding,
+    rightPadding,
+  );
   const labelY = 42;
-  const topY = 118;
-  const bottomY = 900;
-  const xStep = columnCount > 1
-    ? (viewBoxWidth - leftX - rightPadding - boxWidth) / (columnCount - 1)
-    : 0;
+  const topY = 138;
+  const bottomY = includeThirdPlace ? 716 : 920;
 
   const layoutRounds = getBracketPageLayouts(pageGroup, topY, bottomY).map((round, index) => {
     return {
       ...round,
       absoluteIndex: pageGroup.startIndex + index,
-      x: leftX + xStep * index,
+      x: startX + xStep * index,
     };
   });
 
@@ -1034,6 +1793,18 @@ function buildBracketPageMarkup(className, record, pageGroup, pageNumber, totalP
     }
   }
 
+  const thirdPlaceMarkup = includeThirdPlace
+    ? buildThirdPlaceMarkup(record, interactive, viewBoxWidth, viewBoxHeight)
+    : { connectorsHtml: "", shapesHtml: "", overlaysHtml: "" };
+
+  const slotShapes = layoutRounds.flatMap((round) => {
+    return round.centers.map((centerY) => {
+      const slotClassName =
+        round.absoluteIndex === record.rounds.length - 1 ? "bracket-slot champion" : "bracket-slot";
+      return renderBracketSlotShape(round.x, centerY, boxWidth, round.boxHeight, slotClassName);
+    });
+  }).join("");
+
   const slots = layoutRounds.flatMap((round) => {
     return round.centers.map((centerY, slotIndex) => {
       return buildBracketSlotMarkup(
@@ -1053,14 +1824,17 @@ function buildBracketPageMarkup(className, record, pageGroup, pageNumber, totalP
 
   return `
     <section class="summary-sheet summary-sheet-bracket${interactive ? " is-editor" : ""}">
+      ${buildSummarySheetBrand()}
       <div class="summary-sheet-title">รุ่น ${escapeHtml(className || "-")}</div>
       <div class="summary-sheet-note">ผู้สมัคร ${record.config.entries.length} ทีม | หน้า ${pageNumber} / ${totalPages}</div>
-      <div class="bracket-canvas" style="padding-top:${(viewBoxHeight / viewBoxWidth) * 100}%">
-        <svg viewBox="0 0 ${viewBoxWidth} ${viewBoxHeight}" class="bracket-canvas-svg" xmlns="http://www.w3.org/2000/svg" aria-label="Bracket page ${pageNumber}">
+      <div class="bracket-canvas" style="padding-top:${canvasPaddingTop}%">
+        <svg viewBox="0 0 ${viewBoxWidth} ${viewBoxHeight}" preserveAspectRatio="none" class="bracket-canvas-svg" xmlns="http://www.w3.org/2000/svg" aria-label="Bracket page ${pageNumber}">
           <g class="bracket-labels">${labels.join("")}</g>
-          <g class="bracket-connectors">${connectors.join("")}</g>
+          <g class="bracket-connectors">${connectors.join("")}${thirdPlaceMarkup.connectorsHtml}</g>
+          <g class="bracket-slot-shapes">${slotShapes}${thirdPlaceMarkup.shapesHtml}</g>
         </svg>
         ${slots}
+        ${thirdPlaceMarkup.overlaysHtml}
       </div>
     </section>
   `;
@@ -1073,8 +1847,9 @@ function buildBracketSummary(className, options = {}) {
   if (record.config.entries.length < 2) {
     return `
       <section class="summary-sheet summary-sheet-bracket">
+        ${buildSummarySheetBrand()}
         <div class="summary-sheet-title">รุ่น ${escapeHtml(className || "-")}</div>
-        <div class="summary-sheet-note">ต้องมีผู้สมัครอย่างน้อย 2 ทีม จึงจะสร้าง Tournament Bracket ได้</div>
+        <div class="summary-sheet-note">ต้องมีผู้สมัครอย่างน้อย 2 ทีม จึงจะสร้างสายประกบรุ่นแข่งได้</div>
       </section>
     `;
   }
@@ -1092,7 +1867,7 @@ function buildBracketSummary(className, options = {}) {
   return `
     <div class="summary-bracket-editor-actions">
       <div class="summary-bracket-editor-copy">
-        รอบแรกเลือกทีมลงแต่ละช่องเองก่อน แล้วรอบถัดไปจะเลือกผู้ชนะได้เฉพาะจากคู่ก่อนหน้าเท่านั้น
+        รอบแรกเลือกทีมลงแต่ละช่องเองก่อน แล้วรอบถัดไปจะเลือกผู้ชนะได้เฉพาะจากคู่ก่อนหน้าเท่านั้น เมื่อได้ผู้แพ้รอบรองครบแล้ว ระบบจะเปิดชิงอันดับ 3 ให้เลือกผู้ชนะต่อได้
       </div>
       <button class="button button-secondary button-small" type="button" data-action="reset-bracket">
         ล้างสายประกบ
@@ -1119,9 +1894,10 @@ function buildSummaryDocument() {
 
   if (!className || !template) {
     return {
-      title: "Summary",
+      title: `${EVENT_BRAND.fullName} | หน้าสรุป`,
       html: `
         <section class="summary-sheet summary-sheet-empty">
+          ${buildSummarySheetBrand()}
           <div class="summary-sheet-title">ยังไม่มีข้อมูลสรุป</div>
           <div class="summary-sheet-note">กรุณาเลือกรุ่นแข่งขันและแบบฟอร์มสรุปก่อน</div>
         </section>
@@ -1131,32 +1907,36 @@ function buildSummaryDocument() {
 
   if (templateId === "name-only") {
     return {
-      title: `${template.label} ${className}`,
+      title: `${EVENT_BRAND.fullName} | ${template.label} ${className}`,
       html: buildNameOnlySummary(className),
     };
   }
 
   if (templateId === "with-vehicle-numbers") {
     return {
-      title: `${template.label} ${className}`,
+      title: `${EVENT_BRAND.fullName} | ${template.label} ${className}`,
       html: buildVehicleSummary(className),
     };
   }
 
   if (templateId === "timing-sheet") {
     return {
-      title: `${template.label} ${className}`,
+      title: `${EVENT_BRAND.fullName} | ${template.label} ${className}`,
       html: buildTimingSummary(className),
     };
   }
 
   return {
-    title: `${template.label} ${className}`,
+    title: `${EVENT_BRAND.fullName} | ${template.label} ${className}`,
     html: buildBracketSummary(className),
   };
 }
 
 function renderSummaryPreview() {
+  if (!hasElement("summaryPreview") || !hasElement("summaryPreviewMeta")) {
+    return;
+  }
+
   const className = state.selectedSummaryClass;
   const summaryDocument = buildSummaryDocument();
 
@@ -1177,6 +1957,7 @@ function renderSummaryPreview() {
       ${previewHtml}
     </div>
   `;
+  elements.summaryPreview.scrollLeft = 0;
 }
 function clampVehicleCount(value) {
   const parsed = Number.parseInt(value, 10);
@@ -1187,49 +1968,21 @@ function clampVehicleCount(value) {
   return Math.min(parsed, state.maxVehicles);
 }
 
-function collectBikeNumbers() {
-  return [...elements.bikeNumbersContainer.querySelectorAll("input")].map(
-    (input) => input.value,
-  );
-}
-
-function renderBikeInputs(count, existingValues = []) {
-  elements.vehicleCount.value = count.toString();
-
-  const inputs = Array.from({ length: count }, (_, index) => {
-    const value = existingValues[index] || "";
-    return `
-      <div class="bike-input">
-        <label for="bikeNumber-${index + 1}">คันที่ ${index + 1}</label>
-        <input
-          id="bikeNumber-${index + 1}"
-          name="bikeNumber"
-          type="text"
-          maxlength="20"
-          placeholder="หมายเลขรถ"
-          value="${escapeHtml(value)}"
-          required
-        />
-      </div>
-    `;
-  }).join("");
-
-  elements.bikeNumbersContainer.innerHTML = inputs;
-}
-
 function getFilteredRegistrations() {
-  const term = elements.searchInput.value.trim().toLowerCase();
+  const term = elements.searchInput?.value.trim().toLowerCase() || "";
   if (!term) {
     return state.registrations;
   }
 
   return state.registrations.filter((item) => {
+    const classes = (item.entries || []).map((entry) => entry.raceClass);
+    const bikeNumbers = (item.entries || []).flatMap((entry) => entry.bikeNumbers || []);
     const haystack = [
       item.applicantName,
       item.address,
       item.contactPhone,
-      item.raceClass,
-      ...(item.bikeNumbers || []),
+      ...classes,
+      ...bikeNumbers,
     ]
       .join(" ")
       .toLowerCase();
@@ -1238,8 +1991,96 @@ function getFilteredRegistrations() {
   });
 }
 
+function getRegistrationPageCount(totalItems) {
+  return Math.max(1, Math.ceil(totalItems / REGISTRATIONS_PER_PAGE));
+}
+
+function clampRegistrationPage(totalItems) {
+  const pageCount = getRegistrationPageCount(totalItems);
+  state.registrationPage = Math.min(Math.max(state.registrationPage, 1), pageCount);
+  return pageCount;
+}
+
+function goToRegistrationPage(page) {
+  const pageCount = clampRegistrationPage(getFilteredRegistrations().length);
+  const nextPage = Math.min(Math.max(page, 1), pageCount);
+
+  if (state.registrationPage === nextPage) {
+    return;
+  }
+
+  state.registrationPage = nextPage;
+  renderRegistrations();
+}
+
+function resetRegistrationPage() {
+  state.registrationPage = 1;
+}
+
+function renderRegistrationPagination(totalItems, pageCount) {
+  if (!hasElement("registrationPagination")) {
+    return;
+  }
+
+  if (totalItems === 0 || pageCount <= 1) {
+    elements.registrationPagination.innerHTML = "";
+    return;
+  }
+
+  const currentPageNumber = state.registrationPage;
+  const pageButtons = Array.from({ length: pageCount }, (_, index) => {
+    const pageNumber = index + 1;
+    const isCurrent = pageNumber === currentPageNumber;
+
+    return `
+      <button
+        class="pagination-button ${isCurrent ? "is-active" : ""}"
+        type="button"
+        data-action="go-to-page"
+        data-page="${pageNumber}"
+        ${isCurrent ? 'aria-current="page"' : ""}
+      >
+        ${pageNumber}
+      </button>
+    `;
+  }).join("");
+
+  elements.registrationPagination.innerHTML = `
+    <div class="pagination-summary">
+      หน้า ${currentPageNumber} / ${pageCount}
+      <span>แสดง ${REGISTRATIONS_PER_PAGE} รายการต่อหน้า</span>
+    </div>
+    <div class="pagination-actions">
+      <button
+        class="pagination-button"
+        type="button"
+        data-action="go-to-page"
+        data-page="${currentPageNumber - 1}"
+        ${currentPageNumber === 1 ? "disabled" : ""}
+      >
+        ก่อนหน้า
+      </button>
+      ${pageButtons}
+      <button
+        class="pagination-button"
+        type="button"
+        data-action="go-to-page"
+        data-page="${currentPageNumber + 1}"
+        ${currentPageNumber === pageCount ? "disabled" : ""}
+      >
+        ถัดไป
+      </button>
+    </div>
+  `;
+}
+
 function renderRegistrations() {
+  if (!hasElement("registrationList")) {
+    return;
+  }
+
   const registrations = getFilteredRegistrations();
+  const pageCount = clampRegistrationPage(registrations.length);
 
   if (registrations.length === 0) {
     elements.registrationList.innerHTML = `
@@ -1247,13 +2088,34 @@ function renderRegistrations() {
         ยังไม่มีข้อมูลผู้สมัครในรายการนี้ หรือไม่พบข้อมูลจากคำค้นหา
       </div>
     `;
+    renderRegistrationPagination(0, pageCount);
     return;
   }
 
-  elements.registrationList.innerHTML = registrations
+  const startIndex = (state.registrationPage - 1) * REGISTRATIONS_PER_PAGE;
+  const visibleRegistrations = registrations.slice(
+    startIndex,
+    startIndex + REGISTRATIONS_PER_PAGE,
+  );
+
+  elements.registrationList.innerHTML = visibleRegistrations
     .map((item) => {
-      const bikeNumbers = (item.bikeNumbers || [])
-        .map((bikeNumber) => `<span class="number-pill">${escapeHtml(bikeNumber)}</span>`)
+      const entryBlocks = (item.entries || [])
+        .map((entry) => {
+          const bikeNumbers = (entry.bikeNumbers || [])
+            .map((bikeNumber) => `<span class="number-pill">${escapeHtml(bikeNumber)}</span>`)
+            .join("");
+
+          return `
+            <div class="registration-entry-block">
+              <div class="registration-entry-head">
+                <strong>${escapeHtml(entry.raceClass || "-")}</strong>
+                <span>${entry.vehicleCount} คัน</span>
+              </div>
+              <div class="numbers-row">${bikeNumbers}</div>
+            </div>
+          `;
+        })
         .join("");
 
       return `
@@ -1262,15 +2124,15 @@ function renderRegistrations() {
             <div>
               <h3>${escapeHtml(item.applicantName)}</h3>
               <div class="meta-line">
-                <span>${escapeHtml(item.raceClass)}</span>
-                <span>${item.vehicleCount} คัน</span>
+                <span>สมัคร ${item.entries.length} รุ่น</span>
+                <span>รถรวม ${getRegistrationTotalVehicleCount(item)} คัน</span>
                 <span>บันทึกเมื่อ ${escapeHtml(formatDate(item.createdAt))}</span>
               </div>
             </div>
             <span class="badge"># ${escapeHtml(item.id.slice(0, 8))}</span>
           </div>
 
-          <div class="numbers-row">${bikeNumbers}</div>
+          <div class="registration-entry-list">${entryBlocks}</div>
 
           <div class="address-block">${escapeHtml(item.address)}${item.contactPhone ? `<br />เบอร์โทร: ${escapeHtml(item.contactPhone)}` : ""}</div>
 
@@ -1303,10 +2165,15 @@ function renderRegistrations() {
       `;
     })
     .join("");
+
+  renderRegistrationPagination(registrations.length, pageCount);
 }
 
 function applyRegistrations(registrations) {
-  state.registrations = registrations;
+  state.registrations = registrations.map((registration) => {
+    return buildRegistrationViewModel(registration);
+  });
+  clampRegistrationPage(state.registrations.length);
   renderRegistrations();
   renderClassList();
   renderSummaryPreview();
@@ -1321,7 +2188,6 @@ async function refreshData() {
 
   state.classes = meta.classes;
   state.maxVehicles = meta.maxVehicles;
-  elements.vehicleCount.max = state.maxVehicles.toString();
   syncSummarySelection();
   renderClassOptions();
   renderSummaryClassOptions();
@@ -1329,24 +2195,38 @@ async function refreshData() {
 }
 
 function resetForm() {
+  if (!hasElement("registrationForm")) {
+    state.editingId = null;
+    return;
+  }
+
   state.editingId = null;
+  clearRequestedRegistrationId();
   elements.registrationForm.reset();
   elements.formModeBadge.textContent = "สร้างรายการใหม่";
   elements.submitButton.textContent = "บันทึกข้อมูล";
-  renderClassOptions();
-  renderBikeInputs(1);
-  setStatus("พร้อมบันทึกข้อมูลผู้สมัครใหม่");
+  renderClassEntries([createEmptyRegistrationEntry()]);
+  setStatus(getDefaultStatusMessage());
 }
 
 function fillForm(registration) {
+  if (!hasElement("registrationForm")) {
+    return;
+  }
+
   state.editingId = registration.id;
   elements.registrationForm.applicantName.value = registration.applicantName;
   elements.registrationForm.address.value = registration.address;
   elements.registrationForm.contactPhone.value = registration.contactPhone || "";
-  selectRaceClass(registration.raceClass);
   elements.formModeBadge.textContent = "โหมดแก้ไขข้อมูล";
   elements.submitButton.textContent = "อัปเดตข้อมูล";
-  renderBikeInputs(registration.vehicleCount, registration.bikeNumbers);
+  renderClassEntries((registration.entries || []).map((entry) => {
+    return {
+      raceClass: entry.raceClass,
+      vehicleCount: entry.vehicleCount,
+      bikeNumbers: [...(entry.bikeNumbers || [])],
+    };
+  }));
   setStatus(`กำลังแก้ไขข้อมูลของ ${registration.applicantName}`, "warning");
 }
 
@@ -1354,7 +2234,7 @@ async function loadInitialData() {
   renderSummaryTemplates();
   await refreshData();
   renderPrintColumnConfigurator();
-  renderBikeInputs(1);
+  renderClassEntries([createEmptyRegistrationEntry()]);
 }
 function buildPrintShell(title, body) {
   return `
@@ -1373,7 +2253,9 @@ function buildPrintShell(title, body) {
             margin: 0;
             color: #111;
             font-family: Tahoma, "Segoe UI", sans-serif;
-            background: #fff;
+            background:
+              linear-gradient(135deg, rgba(214, 20, 43, 0.1), transparent 32%),
+              #fff;
           }
 
           h1 {
@@ -1386,10 +2268,82 @@ function buildPrintShell(title, body) {
             line-height: 1.6;
           }
 
+          hr {
+            border: 0;
+            border-top: 1px dashed rgba(17, 17, 17, 0.18);
+            margin: 16px 0;
+          }
+
           .sheet {
             border: 2px solid #111;
             border-radius: 18px;
             padding: 24px;
+            background:
+              linear-gradient(180deg, rgba(214, 20, 43, 0.06), transparent 80px),
+              #fff;
+          }
+
+          .print-banner {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 14px;
+            margin-bottom: 18px;
+            padding-bottom: 14px;
+            border-bottom: 2px solid #111;
+          }
+
+          .print-banner-copy {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            min-width: 0;
+          }
+
+          .print-logo {
+            width: 126px;
+            height: auto;
+            flex: 0 0 auto;
+          }
+
+          .print-brand-text {
+            min-width: 0;
+          }
+
+          .print-kicker {
+            margin: 0 0 6px;
+            color: #9c1022;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+          }
+
+          .print-lockup {
+            color: #d6142b;
+            font-size: 30px;
+            font-weight: 900;
+            line-height: 1;
+            letter-spacing: 0.04em;
+          }
+
+          .print-subtitle {
+            margin-top: 4px;
+            color: #111;
+            font-size: 15px;
+            font-weight: 800;
+            letter-spacing: 0.12em;
+          }
+
+          .print-chip {
+            padding: 8px 12px;
+            border: 1px solid #111;
+            border-radius: 999px;
+            background: #111;
+            color: #fff;
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
           }
 
           .row {
@@ -1401,6 +2355,12 @@ function buildPrintShell(title, body) {
             flex-wrap: wrap;
             gap: 10px;
             margin-top: 8px;
+          }
+
+          .entry-block + .entry-block {
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px dashed rgba(17, 17, 17, 0.18);
           }
 
           .pill {
@@ -1434,7 +2394,9 @@ function buildPrintShell(title, body) {
             width: 100%;
             min-height: calc(297mm - 24mm);
             padding: 18mm 14mm 12mm;
-            background: #fff;
+            background:
+              linear-gradient(180deg, rgba(214, 20, 43, 0.05), transparent 70px),
+              #fff;
             page-break-after: always;
             box-sizing: border-box;
           }
@@ -1447,6 +2409,41 @@ function buildPrintShell(title, body) {
             margin-bottom: 16px;
             font-size: 22px;
             font-weight: 700;
+          }
+
+          .summary-sheet-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #111;
+          }
+
+          .summary-sheet-brand-logo {
+            width: 82px;
+            height: auto;
+            flex: 0 0 auto;
+          }
+
+          .summary-sheet-brand-copy {
+            display: grid;
+            gap: 2px;
+          }
+
+          .summary-sheet-brand-name {
+            color: #d6142b;
+            font-size: 24px;
+            font-weight: 900;
+            line-height: 1;
+            letter-spacing: 0.04em;
+          }
+
+          .summary-sheet-brand-subtitle {
+            margin-top: 4px;
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: 0.04em;
           }
 
           .summary-sheet-note {
@@ -1500,7 +2497,10 @@ function buildPrintShell(title, body) {
           .bracket-connectors path {
             fill: none;
             stroke: #111;
-            stroke-width: 3;
+            stroke-width: 2.6;
+            stroke-linecap: square;
+            stroke-linejoin: round;
+            vector-effect: non-scaling-stroke;
           }
 
           .bracket-box-group rect {
@@ -1532,31 +2532,65 @@ function buildPrintShell(title, body) {
             inset: 0;
             width: 100%;
             height: 100%;
+            shape-rendering: geometricPrecision;
           }
 
           .bracket-slot {
             position: absolute;
-            display: flex;
-            align-items: center;
+            display: block;
+          }
+
+          .bracket-slot-shape {
+            fill: #fff;
+            stroke: #111;
+            stroke-width: 1.5;
+          }
+
+          .bracket-slot-shape.champion {
+            fill: #f7efe2;
+          }
+
+          .bracket-slot-shape.third-place-result {
+            fill: #f8f1e5;
           }
 
           .bracket-slot-value {
             width: 100%;
             height: 100%;
-            padding: 0 10px;
-            border: 1.5px solid #111;
-            border-radius: 14px;
-            background: #fff;
+            padding: 5px 10px;
+            box-sizing: border-box;
+            border: 0;
+            border-radius: 0;
+            background: transparent;
             color: #111;
-            display: flex;
-            align-items: center;
+            line-height: 1.15;
             overflow: hidden;
-            white-space: nowrap;
-            text-overflow: ellipsis;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+            white-space: normal;
+            display: -webkit-box;
+            -webkit-box-orient: vertical;
+            -webkit-line-clamp: 3;
+            pointer-events: none;
           }
 
-          .bracket-slot.champion .bracket-slot-value {
-            background: #f7efe2;
+          .bracket-third-place-title {
+            position: absolute;
+            color: #111;
+            font-size: 14px;
+            font-weight: 700;
+            letter-spacing: 0.01em;
+          }
+
+          .bracket-third-place-ranks {
+            position: absolute;
+            color: #444;
+            font-size: 12px;
+            line-height: 1.55;
+          }
+
+          .bracket-third-place-ranks strong {
+            color: #111;
           }
         </style>
       </head>
@@ -1579,27 +2613,39 @@ function openPrintWindow(title, body) {
 }
 
 function printRegistration(registration) {
-  const numbers = registration.bikeNumbers
-    .map((value) => `<span class="pill">${escapeHtml(value)}</span>`)
+  const entrySections = (registration.entries || [])
+    .map((entry) => {
+      const numbers = (entry.bikeNumbers || [])
+        .map((value) => `<span class="pill">${escapeHtml(value)}</span>`)
+        .join("");
+
+      return `
+        <div class="entry-block">
+          <div class="row"><strong>รุ่นที่สมัคร:</strong> ${escapeHtml(entry.raceClass)}</div>
+          <div class="row"><strong>จำนวนรถที่จะลงแข่ง:</strong> ${entry.vehicleCount} คัน</div>
+          <div class="row">
+            <strong>หมายเลขรถที่ลงแข่ง:</strong>
+            <div class="numbers">${numbers}</div>
+          </div>
+        </div>
+      `;
+    })
     .join("");
 
   const body = `
     <section class="sheet">
-      <h1>ใบสมัครแข่งขันแด็กไบค์</h1>
+      ${buildPrintBrandBanner("ใบสมัคร")}
+      <h1>ใบสมัครแข่งขัน ${escapeHtml(EVENT_LOCKUP)}</h1>
       <p class="muted">พิมพ์เมื่อ ${escapeHtml(formatDate(new Date().toISOString()))}</p>
       <div class="row"><strong>ชื่อผู้สมัคร:</strong> ${escapeHtml(registration.applicantName)}</div>
       <div class="row"><strong>ที่อยู่:</strong> ${escapeHtml(registration.address)}</div>
       <div class="row"><strong>เบอร์โทรติดต่อ:</strong> ${escapeHtml(registration.contactPhone || "-")}</div>
-      <div class="row"><strong>รุ่นที่สมัคร:</strong> ${escapeHtml(registration.raceClass)}</div>
-      <div class="row"><strong>จำนวนรถที่จะลงแข่ง:</strong> ${registration.vehicleCount} คัน</div>
-      <div class="row">
-        <strong>หมายเลขรถที่ลงแข่ง:</strong>
-        <div class="numbers">${numbers}</div>
-      </div>
+      <div class="row"><strong>สมัครทั้งหมด:</strong> ${registration.entries.length} รุ่น | รถรวม ${getRegistrationTotalVehicleCount(registration)} คัน</div>
+      ${entrySections}
     </section>
   `;
 
-  openPrintWindow(`ใบสมัคร ${registration.applicantName}`, body);
+  openPrintWindow(`${EVENT_BRAND.fullName} | ใบสมัคร ${registration.applicantName}`, body);
 }
 
 function formatPrintColumnValue(columnId, registration, index) {
@@ -1611,12 +2657,12 @@ function formatPrintColumnValue(columnId, registration, index) {
     case "applicantName":
       return registration.applicantName || "-";
     case "raceClass":
-      return registration.raceClass || "-";
+      return getRegistrationClassNames(registration).join(" | ") || "-";
     case "vehicleCount":
-      return registration.vehicleCount ? `${registration.vehicleCount} คัน` : "-";
+      return `${getRegistrationTotalVehicleCount(registration)} คัน`;
     case "bikeNumbers":
-      return Array.isArray(registration.bikeNumbers) && registration.bikeNumbers.length > 0
-        ? registration.bikeNumbers.join(", ")
+      return getRegistrationAllBikeNumbers(registration).length > 0
+        ? getRegistrationAllBikeNumbers(registration).join(", ")
         : "-";
     case "address":
       return registration.address || "-";
@@ -1662,14 +2708,15 @@ function printAllRegistrations() {
       return `<tr>${cells}</tr>`;
     })
     .join("");
-  const filterText = elements.searchInput.value.trim();
+  const filterText = elements.searchInput?.value.trim() || "";
   const filterNote = filterText
     ? `<p class="muted">พิมพ์จากผลค้นหา: ${escapeHtml(filterText)}</p>`
     : "";
 
   const body = `
     <section class="sheet">
-      <h1>รายการผู้สมัครแข่งขันแด็กไบค์</h1>
+      ${buildPrintBrandBanner("รายชื่อผู้สมัคร")}
+      <h1>รายการผู้สมัคร ${escapeHtml(EVENT_LOCKUP)}</h1>
       <p class="muted">จำนวนรายการ ${registrations.length} รายการ</p>
       ${filterNote}
       <table>
@@ -1681,7 +2728,7 @@ function printAllRegistrations() {
     </section>
   `;
 
-  openPrintWindow("รายการผู้สมัครทั้งหมด", body);
+  openPrintWindow(`${EVENT_BRAND.fullName} | รายการผู้สมัครทั้งหมด`, body);
 }
 
 function printSummaryDocument() {
@@ -1716,6 +2763,10 @@ async function deleteClass(className) {
 
 async function handleClassSubmit(event) {
   event.preventDefault();
+  if (!hasElement("newClassInput")) {
+    return;
+  }
+
   const className = elements.newClassInput.value.trim();
 
   if (!className) {
@@ -1749,17 +2800,22 @@ async function handleClassRename(currentName, nextName) {
     return;
   }
 
-  const previousSelection = elements.raceClass.value;
-  const nextSelection =
-    normalizeText(previousSelection) === normalizeText(currentName)
-      ? nextName
-      : previousSelection;
+  const draftEntries = collectRegistrationEntries().map((entry) => {
+    if (normalizeText(entry.raceClass) !== normalizeText(currentName)) {
+      return entry;
+    }
+
+    return {
+      ...entry,
+      raceClass: nextName,
+    };
+  });
 
   try {
     state.editingClassName = null;
     await renameClass(currentName, nextName);
     await refreshData();
-    selectRaceClass(nextSelection);
+    renderClassEntries(draftEntries);
     setStatus(`แก้ไขชื่อรุ่นจาก ${currentName} เป็น ${nextName} เรียบร้อยแล้ว`);
   } catch (error) {
     state.editingClassName = currentName;
@@ -1774,16 +2830,21 @@ async function handleClassRemoval(className) {
     return;
   }
 
-  const previousSelection = elements.raceClass.value;
+  const draftEntries = collectRegistrationEntries().map((entry) => {
+    if (normalizeText(entry.raceClass) !== normalizeText(className)) {
+      return entry;
+    }
+
+    return {
+      ...entry,
+      raceClass: "",
+    };
+  });
 
   try {
     await deleteClass(className);
     await refreshData();
-    if (normalizeText(previousSelection) === normalizeText(className)) {
-      elements.raceClass.value = "";
-    } else {
-      selectRaceClass(previousSelection);
-    }
+    renderClassEntries(draftEntries);
     setStatus(`ลบรุ่นแข่งขัน ${className} เรียบร้อยแล้ว`);
   } catch (error) {
     setStatus(error.message, "danger");
@@ -1791,18 +2852,25 @@ async function handleClassRemoval(className) {
 }
 
 function getRegistrationPayload() {
-  const vehicleCount = clampVehicleCount(elements.vehicleCount.value);
-  const bikeNumbers = collectBikeNumbers()
-    .slice(0, vehicleCount)
-    .map((value) => value.trim());
+  if (!hasElement("registrationForm")) {
+    return null;
+  }
+
+  const entries = collectRegistrationEntries().map((entry) => {
+    return {
+      raceClass: entry.raceClass,
+      vehicleCount: entry.vehicleCount,
+      bikeNumbers: entry.bikeNumbers
+        .slice(0, entry.vehicleCount)
+        .map((value) => value.trim()),
+    };
+  });
 
   return {
     applicantName: elements.registrationForm.applicantName.value.trim(),
     address: elements.registrationForm.address.value.trim(),
     contactPhone: elements.registrationForm.contactPhone.value.trim(),
-    raceClass: elements.raceClass.value,
-    vehicleCount,
-    bikeNumbers,
+    entries,
   };
 }
 
@@ -1813,7 +2881,12 @@ async function reloadRegistrations() {
 
 async function handleSubmit(event) {
   event.preventDefault();
+  const isEditing = Boolean(state.editingId);
   const payload = getRegistrationPayload();
+  if (!payload) {
+    return;
+  }
+
   const path = state.editingId
     ? `/api/registrations/${state.editingId}`
     : "/api/registrations";
@@ -1827,7 +2900,7 @@ async function handleSubmit(event) {
 
     await reloadRegistrations();
 
-    const message = state.editingId
+    const message = isEditing
       ? "อัปเดตข้อมูลผู้สมัครเรียบร้อยแล้ว"
       : "บันทึกข้อมูลผู้สมัครเรียบร้อยแล้ว";
     resetForm();
@@ -1869,7 +2942,12 @@ async function handleCopyNumbers(id) {
     return;
   }
 
-  const text = registration.bikeNumbers.join(", ");
+  const text = (registration.entries || [])
+    .map((entry) => {
+      const numbers = (entry.bikeNumbers || []).join(", ");
+      return `${entry.raceClass}: ${numbers || "-"}`;
+    })
+    .join(" | ");
 
   try {
     await navigator.clipboard.writeText(text);
@@ -1879,26 +2957,113 @@ async function handleCopyNumbers(id) {
   }
 }
 
+function applyRequestedRegistrationEdit() {
+  if (!hasElement("registrationForm")) {
+    return false;
+  }
+
+  const requestedId = getRequestedRegistrationId();
+  if (!requestedId) {
+    return false;
+  }
+
+  const registration = state.registrations.find((item) => item.id === requestedId);
+  if (!registration) {
+    clearRequestedRegistrationId();
+    setStatus("ไม่พบข้อมูลผู้สมัครที่ต้องการแก้ไข", "warning");
+    return true;
+  }
+
+  fillForm(registration);
+  return true;
+}
+
+function bindIfPresent(element, eventName, handler) {
+  if (!element) {
+    return;
+  }
+
+  element.addEventListener(eventName, handler);
+}
+
 function bindEvents() {
-  elements.vehicleCount.addEventListener("input", () => {
-    const count = clampVehicleCount(elements.vehicleCount.value);
-    renderBikeInputs(count, collectBikeNumbers());
+  bindIfPresent(elements.cancelEditButton, "click", resetForm);
+  bindIfPresent(elements.addClassEntryButton, "click", () => {
+    const entries = collectRegistrationEntries();
+    entries.push(createEmptyRegistrationEntry());
+    renderClassEntries(entries);
+  });
+  bindIfPresent(elements.classForm, "submit", handleClassSubmit);
+  bindIfPresent(elements.classEntriesContainer, "click", (event) => {
+    const target = event.target.closest("[data-action='remove-class-entry']");
+    if (!target) {
+      return;
+    }
+
+    const entryIndex = Number.parseInt(target.dataset.entryIndex, 10);
+    if (!Number.isInteger(entryIndex)) {
+      return;
+    }
+
+    const entries = collectRegistrationEntries();
+    entries.splice(entryIndex, 1);
+    renderClassEntries(entries);
+  });
+  bindIfPresent(elements.classEntriesContainer, "input", (event) => {
+    const target = event.target.closest("[data-entry-field='vehicleCount']");
+    if (!target) {
+      return;
+    }
+
+    const entryCard = target.closest("[data-entry-index]");
+    const entryIndex = Number.parseInt(entryCard?.dataset.entryIndex, 10);
+    if (!Number.isInteger(entryIndex)) {
+      return;
+    }
+
+    const entries = collectRegistrationEntries();
+    entries[entryIndex] = {
+      ...entries[entryIndex],
+      vehicleCount: target.value,
+    };
+    renderClassEntries(entries);
+  });
+  bindIfPresent(elements.registrationForm, "submit", handleSubmit);
+  bindIfPresent(elements.openPrintModalButton, "click", openPrintModal);
+  bindIfPresent(elements.closePrintModalButton, "click", () => {
+    closePrintModal();
+  });
+  bindIfPresent(elements.closePrintModalButtonSecondary, "click", () => {
+    closePrintModal();
+  });
+  bindIfPresent(elements.printModal, "click", (event) => {
+    if (event.target !== elements.printModal) {
+      return;
+    }
+
+    closePrintModal();
+  });
+  bindIfPresent(elements.resetPrintColumnsButton, "click", resetPrintColumns);
+  bindIfPresent(elements.searchInput, "input", () => {
+    resetRegistrationPage();
+    renderRegistrations();
+  });
+  bindIfPresent(elements.printAllButton, "click", printAllRegistrations);
+  bindIfPresent(elements.printSummaryButton, "click", printSummaryDocument);
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") {
+      return;
+    }
+
+    closePrintModal();
   });
 
-  elements.cancelEditButton.addEventListener("click", resetForm);
-  elements.classForm.addEventListener("submit", handleClassSubmit);
-  elements.registrationForm.addEventListener("submit", handleSubmit);
-  elements.resetPrintColumnsButton.addEventListener("click", resetPrintColumns);
-  elements.searchInput.addEventListener("input", renderRegistrations);
-  elements.printAllButton.addEventListener("click", printAllRegistrations);
-  elements.printSummaryButton.addEventListener("click", printSummaryDocument);
-
-  elements.summaryClassSelect.addEventListener("change", (event) => {
+  bindIfPresent(elements.summaryClassSelect, "change", (event) => {
     state.selectedSummaryClass = event.target.value;
     renderSummaryPreview();
   });
 
-  elements.summaryTemplateList.addEventListener("click", (event) => {
+  bindIfPresent(elements.summaryTemplateList, "click", (event) => {
     const target = event.target.closest("[data-template-id]");
     if (!target) {
       return;
@@ -1909,22 +3074,31 @@ function bindEvents() {
     renderSummaryPreview();
   });
 
-  elements.summaryPreview.addEventListener("change", (event) => {
-    const target = event.target.closest("[data-action='bracket-select']");
-    if (!target || !state.selectedSummaryClass) {
+  bindIfPresent(elements.summaryPreview, "change", (event) => {
+    if (!state.selectedSummaryClass) {
       return;
     }
 
-    setBracketSelection(
-      state.selectedSummaryClass,
-      Number.parseInt(target.dataset.roundIndex, 10),
-      Number.parseInt(target.dataset.slotIndex, 10),
-      target.value,
-    );
-    renderSummaryPreview();
+    const bracketTarget = event.target.closest("[data-action='bracket-select']");
+    if (bracketTarget) {
+      setBracketSelection(
+        state.selectedSummaryClass,
+        Number.parseInt(bracketTarget.dataset.roundIndex, 10),
+        Number.parseInt(bracketTarget.dataset.slotIndex, 10),
+        bracketTarget.value,
+      );
+      renderSummaryPreview();
+      return;
+    }
+
+    const thirdPlaceTarget = event.target.closest("[data-action='bracket-third-place-select']");
+    if (thirdPlaceTarget) {
+      setThirdPlaceWinner(state.selectedSummaryClass, thirdPlaceTarget.value);
+      renderSummaryPreview();
+    }
   });
 
-  elements.summaryPreview.addEventListener("click", (event) => {
+  bindIfPresent(elements.summaryPreview, "click", (event) => {
     const target = event.target.closest("[data-action='reset-bracket']");
     if (!target || !state.selectedSummaryClass) {
       return;
@@ -1935,7 +3109,7 @@ function bindEvents() {
     setStatus(`ล้างสายประกบของรุ่น ${state.selectedSummaryClass} แล้ว`);
   });
 
-  elements.printColumnList.addEventListener("change", (event) => {
+  bindIfPresent(elements.printColumnList, "change", (event) => {
     const target = event.target.closest("[data-action='toggle-print-column']");
     if (!target) {
       return;
@@ -1944,7 +3118,7 @@ function bindEvents() {
     togglePrintColumn(target.dataset.id, target.checked);
   });
 
-  elements.printColumnList.addEventListener("click", (event) => {
+  bindIfPresent(elements.printColumnList, "click", (event) => {
     const target = event.target.closest("[data-action='move-print-column']");
     if (!target) {
       return;
@@ -1953,7 +3127,7 @@ function bindEvents() {
     movePrintColumn(target.dataset.id, target.dataset.direction);
   });
 
-  elements.classList.addEventListener("click", (event) => {
+  bindIfPresent(elements.classList, "click", (event) => {
     const target = event.target.closest("[data-action]");
     if (!target) {
       return;
@@ -1976,7 +3150,7 @@ function bindEvents() {
     }
   });
 
-  elements.classList.addEventListener("submit", (event) => {
+  bindIfPresent(elements.classList, "submit", (event) => {
     const form = event.target.closest("form[data-class]");
     if (!form) {
       return;
@@ -1986,7 +3160,7 @@ function bindEvents() {
     handleClassRename(form.dataset.class, form.classNameEdit.value.trim());
   });
 
-  elements.registrationList.addEventListener("click", (event) => {
+  bindIfPresent(elements.registrationList, "click", (event) => {
     const target = event.target.closest("[data-action]");
     if (!target) {
       return;
@@ -1996,8 +3170,7 @@ function bindEvents() {
     const registration = state.registrations.find((item) => item.id === id);
 
     if (action === "edit" && registration) {
-      fillForm(registration);
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      openRegistrationEditor(registration.id);
       return;
     }
 
@@ -2015,6 +3188,15 @@ function bindEvents() {
       handleDelete(id);
     }
   });
+
+  bindIfPresent(elements.registrationPagination, "click", (event) => {
+    const target = event.target.closest("[data-action='go-to-page']");
+    if (!target || target.disabled) {
+      return;
+    }
+
+    goToRegistrationPage(Number.parseInt(target.dataset.page, 10));
+  });
 }
 
 async function init() {
@@ -2022,7 +3204,9 @@ async function init() {
 
   try {
     await loadInitialData();
-    setStatus("พร้อมบันทึกข้อมูลผู้สมัครใหม่");
+    if (!applyRequestedRegistrationEdit()) {
+      setStatus(getDefaultStatusMessage());
+    }
   } catch (error) {
     setStatus(error.message, "danger");
   }

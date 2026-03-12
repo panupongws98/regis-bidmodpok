@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>รายชื่อผู้สมัคร | งานแข่งรถไฮสปีด บิดหมดปลอก ณ สนามแข่งรถบ้านฉางเรสซิ่ง จ.ระยอง</title>
+    <link rel="stylesheet" href="/styles.css?v=20260312-bidmodplok-copyfix" />
+  </head>
+  <body data-page="applicants">
+    <div class="page-shell">
+      <header class="hero">
+        <div class="hero-copy-block">
+          <p class="eyebrow">สนามแข่งรถสกู๊ตเตอร์แดร็ก</p>
+          <div class="hero-title-lockup">
+            <div class="hero-mark hero-mark--logo">
+              <img
+                class="hero-logo"
+                src="/logo-bidmodplok.svg"
+                alt="โลโก้งานแข่งรถไฮสปีด บิดหมดปลอก ณ สนามแข่งรถบ้านฉางเรสซิ่ง จ.ระยอง"
+              />
+            </div>
+            <div class="hero-headline">
+              <h1>งานแข่งรถไฮสปีด บิดหมดปลอก</h1>
+              <p class="hero-event">ณ สนามแข่งรถบ้านฉางเรสซิ่ง จ.ระยอง</p>
+            </div>
+          </div>
+          <p class="hero-tagline">ตรวจรายชื่อ ค้นหา และแก้ไขผู้สมัครได้เร็วขึ้น</p>
+          <p class="hero-copy">
+            ค้นหา ตรวจสอบ และเปิดรายการเดิมของผู้สมัครงานแข่งรถไฮสปีด บิดหมดปลอก ณ สนามแข่งรถบ้านฉางเรสซิ่ง จ.ระยอง
+            ได้เร็วขึ้น เหมาะกับจังหวะหน้างานที่ต้องเช็กข้อมูลทีม รถ และหมายเลขแข่งแบบต่อเนื่อง
+          </p>
+          <div class="hero-detail-grid">
+            <div class="hero-detail-card">
+              <span>โหมดงาน</span>
+              <strong>เช็กรายชื่อผู้สมัคร</strong>
+            </div>
+            <div class="hero-detail-card">
+              <span>การทำงาน</span>
+              <strong>ค้นหา แก้ไข และพิมพ์ทันที</strong>
+            </div>
+          </div>
+        </div>
+        <div class="hero-stats">
+          <div class="stat-card">
+            <span>ผู้สมัครทั้งหมด</span>
+            <strong id="applicantCount">0</strong>
+          </div>
+          <div class="stat-card">
+            <span>รถที่ลงแข่ง</span>
+            <strong id="vehicleCountStat">0</strong>
+          </div>
+          <div class="hero-burst">
+            <span>รายชื่อผู้สมัคร</span>
+            <strong>พร้อมเช็กคิว</strong>
+            <p>ค้นหา แก้ไข และพิมพ์ใบสมัครได้จากรายการเดียว</p>
+          </div>
+        </div>
+      </header>
+
+      <nav class="system-nav" aria-label="เมนูงานแข่ง">
+        <a class="system-link" href="/index.html">
+          <strong>โต๊ะรับสมัคร</strong>
+          <span>กรอกทีม รุ่นแข่ง และหมายเลขรถเพื่อสร้างรายการใหม่หรือแก้ไขรายการเดิม</span>
+        </a>
+        <a class="system-link" href="/classes.html">
+          <strong>จัดการรุ่นแข่งขัน</strong>
+          <span>เพิ่ม แก้ไข และจัดชุดรุ่นที่เปิดรับสมัครให้ตรงกับงานแข่ง</span>
+        </a>
+        <a class="system-link" href="/applicants.html" aria-current="page">
+          <strong>รายชื่อผู้สมัคร</strong>
+          <span>ค้นหา ตรวจสอบข้อมูล แก้ไขรายการ และพิมพ์ใบสมัครรายคน</span>
+        </a>
+        <a class="system-link" href="/summary.html">
+          <strong>สรุปและพิมพ์เอกสาร</strong>
+          <span>พิมพ์ตารางจับเวลา สรุปรุ่นแข่งขัน และหน้าสายประกบของแต่ละรุ่น</span>
+        </a>
+      </nav>
+
+      <main class="page-main">
+        <section class="panel page-panel">
+          <div class="panel-header">
+            <div>
+              <p class="panel-kicker">Entry Lineup</p>
+              <h2>รายชื่อผู้สมัคร</h2>
+              <p class="panel-description">
+                ค้นหารายการเดิม ตรวจสอบข้อมูล และกดแก้ไขเพื่อเปิดหน้าโต๊ะรับสมัครพร้อมข้อมูลชุดนั้นได้ทันที
+                หรือเลือกพิมพ์ใบสมัครแยกรายคนและเปิดหน้าพิมพ์รายชื่อผู้สมัครรวมจากปุ่มมุมขวาบนได้ทันที
+              </p>
+            </div>
+            <div class="page-tools">
+              <a class="button button-secondary" href="/index.html">
+                เพิ่มผู้สมัครใหม่
+              </a>
+              <button class="button button-primary" type="button" id="openPrintModalButton">
+                พิมพ์รายชื่อผู้สมัครรวม
+              </button>
+            </div>
+          </div>
+
+          <div class="status-banner" id="statusBanner">
+            พร้อมแสดงรายชื่อผู้สมัครงานแข่งรถไฮสปีด บิดหมดปลอก ณ สนามแข่งรถบ้านฉางเรสซิ่ง จ.ระยอง
+          </div>
+
+          <div class="toolbar">
+            <label class="search-box">
+              <span>ค้นหา</span>
+              <input
+                id="searchInput"
+                type="search"
+                placeholder="ค้นหาจากชื่อทีม, ที่อยู่, เบอร์โทร, รุ่น, หมายเลขรถ"
+              />
+            </label>
+            <div class="toolbar-note">
+              กดปุ่มแก้ไขในแต่ละรายการเพื่อเปิดหน้าโต๊ะรับสมัครพร้อมข้อมูลเดิมของผู้สมัครคนนั้น
+            </div>
+          </div>
+
+          <div id="registrationList" class="registration-list"></div>
+          <div id="registrationPagination" class="pagination-bar"></div>
+        </section>
+      </main>
+    </div>
+
+    <div id="printModal" class="modal-backdrop" hidden>
+      <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="printModalTitle">
+        <div class="modal-header">
+          <div>
+            <p class="panel-kicker">Race Print Desk</p>
+            <h2 id="printModalTitle">พิมพ์รายชื่อผู้สมัครรวม</h2>
+            <p class="modal-copy">
+              เลือกคอลัมน์ที่ต้องการแสดงในรายงานรวมของงานแข่งรถไฮสปีด บิดหมดปลอก ณ สนามแข่งรถบ้านฉางเรสซิ่ง จ.ระยอง
+              แล้วสั่งพิมพ์รายการผู้สมัครทั้งหมดได้ทันทีจากหน้าต่างนี้
+            </p>
+          </div>
+          <button class="button button-secondary" type="button" id="closePrintModalButton">
+            ปิด
+          </button>
+        </div>
+
+        <div class="status-banner print-modal-banner" id="printModalStatus">
+          พร้อมพิมพ์รายชื่อผู้สมัครรวมของงานแข่งรถไฮสปีด บิดหมดปลอก ณ สนามแข่งรถบ้านฉางเรสซิ่ง จ.ระยอง
+        </div>
+
+        <div class="print-config-body">
+          <div class="print-config-header">
+            <p>เลือกว่าจะพิมพ์ข้อมูลส่วนใดบ้าง และเลื่อนลำดับคอลัมน์ขึ้นลงได้ก่อนพิมพ์</p>
+            <button
+              class="button button-secondary button-small"
+              type="button"
+              id="resetPrintColumnsButton"
+            >
+              รีเซ็ตคอลัมน์
+            </button>
+          </div>
+          <div id="printColumnSummary" class="print-column-summary"></div>
+          <div id="printColumnList" class="print-column-list"></div>
+        </div>
+
+        <div class="print-modal-actions">
+          <button class="button button-secondary" type="button" id="closePrintModalButtonSecondary">
+            ปิดหน้าต่าง
+          </button>
+          <button class="button button-primary" type="button" id="printAllButton">
+            พิมพ์รายการทั้งหมด
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script src="/app.js?v=20260312-bidmodplok-copyfix"></script>
+  </body>
+</html>

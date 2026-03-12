@@ -14,12 +14,15 @@ const REGISTRATIONS_FILE = path.join(DATA_DIR, "registrations.json");
 const SETTINGS_FILE = path.join(DATA_DIR, "settings.json");
 
 const DEFAULT_CLASSES = [
-  "Open Unlimited",
-  "Street 150",
-  "Street 190",
-  "2 จังหวะ Open",
-  "มือใหม่ 160",
-  "ทีม/ร้านค้า",
+  "รุ่น 56 ชัก 3 (ไฮสปีด)",
+  "รุ่น 57 ชักเดิม ตรอ. (ไฮสปีด)",
+  "รุ่น 66 ชัก 5 มิล ตรอ (ไฮสปีด)",
+  "รุ่น 67 ชักเดิม ตรอ (ไฮสปีด)",
+  "รุ่น Lead125 63 ชักเดิม + Grand filano (ไฮสปีด)",
+  "รุ่น 56 ชัก 3 ตรอ 110i หรือบังลม (ไม่บังคับอะไหล่)",
+  "รุ่น 57 ชักเดิม ตรอ. Wave125, FiNN (ไม่บังคับอะไหล่)",
+  "รุ่น 66 ชัก 5 มิล ตรอ (ไม่บังคับอะไหล่)",
+  "รุ่น 67 ชักเดิม ตรอ (ไม่บังคับอะไหล่)",
 ];
 
 const CONTENT_TYPES = {
@@ -58,6 +61,10 @@ function findClassIndex(classes, className) {
   return classes.findIndex((item) => normalizeText(item) === target);
 }
 
+function findMatchingClassName(classes, className) {
+  return classes.find((item) => normalizeText(item) === normalizeText(className)) || "";
+}
+
 function validateClassName(value) {
   const className = sanitizeText(value);
   if (!className) {
@@ -76,6 +83,69 @@ function ensureClassNameAvailable(classes, className, ignoreIndex = -1) {
   if (duplicateIndex !== -1) {
     throw new Error("มีรุ่นแข่งขันชื่อนี้อยู่แล้ว");
   }
+}
+
+function getRawRegistrationEntries(payload) {
+  if (Array.isArray(payload?.entries) && payload.entries.length > 0) {
+    return payload.entries;
+  }
+
+  if (
+    payload &&
+    (Object.prototype.hasOwnProperty.call(payload, "raceClass") ||
+      Object.prototype.hasOwnProperty.call(payload, "vehicleCount") ||
+      Object.prototype.hasOwnProperty.call(payload, "bikeNumbers"))
+  ) {
+    return [
+      {
+        raceClass: payload.raceClass,
+        vehicleCount: payload.vehicleCount,
+        bikeNumbers: payload.bikeNumbers,
+      },
+    ];
+  }
+
+  return [];
+}
+
+function normalizeRegistrationEntryRecord(entry) {
+  const candidate = entry && typeof entry === "object" ? entry : {};
+  const bikeNumbers = Array.isArray(candidate.bikeNumbers)
+    ? candidate.bikeNumbers.map(sanitizeText).filter(Boolean)
+    : [];
+  const parsedVehicleCount = Number.parseInt(candidate.vehicleCount, 10);
+  const fallbackVehicleCount = bikeNumbers.length > 0 ? bikeNumbers.length : 1;
+  const vehicleCount =
+    Number.isInteger(parsedVehicleCount) && parsedVehicleCount > 0
+      ? Math.min(parsedVehicleCount, MAX_VEHICLES)
+      : Math.min(fallbackVehicleCount, MAX_VEHICLES);
+
+  return {
+    raceClass: sanitizeText(candidate.raceClass),
+    vehicleCount,
+    bikeNumbers: bikeNumbers.slice(0, vehicleCount),
+  };
+}
+
+function normalizeRegistrationRecord(registration) {
+  const candidate = registration && typeof registration === "object" ? registration : {};
+  const entries = getRawRegistrationEntries(candidate)
+    .map(normalizeRegistrationEntryRecord)
+    .filter((entry) => entry.raceClass);
+
+  if (!candidate.id || !sanitizeText(candidate.applicantName) || entries.length === 0) {
+    return null;
+  }
+
+  return {
+    id: String(candidate.id),
+    applicantName: sanitizeText(candidate.applicantName),
+    address: sanitizeText(candidate.address),
+    contactPhone: sanitizeText(candidate.contactPhone),
+    entries,
+    createdAt: sanitizeText(candidate.createdAt),
+    updatedAt: sanitizeText(candidate.updatedAt),
+  };
 }
 
 async function ensureDataFiles() {
@@ -113,11 +183,16 @@ async function writeJson(filePath, data) {
 
 async function loadRegistrations() {
   const registrations = await readJson(REGISTRATIONS_FILE, []);
-  return Array.isArray(registrations) ? registrations : [];
+  return Array.isArray(registrations)
+    ? registrations.map(normalizeRegistrationRecord).filter(Boolean)
+    : [];
 }
 
 async function saveRegistrations(registrations) {
-  await writeJson(REGISTRATIONS_FILE, registrations);
+  const normalized = Array.isArray(registrations)
+    ? registrations.map(normalizeRegistrationRecord).filter(Boolean)
+    : [];
+  await writeJson(REGISTRATIONS_FILE, normalized);
 }
 
 async function loadClasses() {
@@ -184,32 +259,23 @@ function validateClasses(input) {
   return classes;
 }
 
-function validateRegistration(payload, classes, registrations, currentId = null) {
-  const applicantName = sanitizeText(payload.applicantName);
-  const address = sanitizeText(payload.address);
-  const contactPhone = sanitizeText(payload.contactPhone);
-  const raceClass = sanitizeText(payload.raceClass);
+function validateRegistrationEntry(payload, classes, selectedClasses) {
+  const matchingClassName = findMatchingClassName(classes, payload.raceClass);
   const vehicleCount = Number.parseInt(payload.vehicleCount, 10);
   const rawBikeNumbers = Array.isArray(payload.bikeNumbers)
     ? payload.bikeNumbers
     : [];
   const bikeNumbers = rawBikeNumbers.map(sanitizeText);
 
-  if (!applicantName) {
-    throw new Error("กรุณากรอกชื่อผู้สมัคร");
-  }
-
-  if (!address) {
-    throw new Error("กรุณากรอกที่อยู่");
-  }
-
-  if (!contactPhone) {
-    throw new Error("กรุณากรอกเบอร์โทรติดต่อ");
-  }
-
-  if (!classes.includes(raceClass)) {
+  if (!matchingClassName) {
     throw new Error("กรุณาเลือกรุ่นที่สมัครจากรายการ");
   }
+
+  const normalizedClassName = normalizeText(matchingClassName);
+  if (selectedClasses.has(normalizedClassName)) {
+    throw new Error("ในใบสมัครเดียวกัน ห้ามเลือกรุ่นแข่งขันซ้ำ");
+  }
+  selectedClasses.add(normalizedClassName);
 
   if (
     !Number.isInteger(vehicleCount) ||
@@ -236,15 +302,57 @@ function validateRegistration(payload, classes, registrations, currentId = null)
     bikeNumberSet.add(normalized);
   }
 
+  return {
+    raceClass: matchingClassName,
+    vehicleCount,
+    bikeNumbers,
+  };
+}
+
+function validateRegistration(payload, classes, registrations, currentId = null) {
+  const applicantName = sanitizeText(payload.applicantName);
+  const address = sanitizeText(payload.address);
+  const contactPhone = sanitizeText(payload.contactPhone);
+  const rawEntries = getRawRegistrationEntries(payload);
+
+  if (!applicantName) {
+    throw new Error("กรุณากรอกชื่อผู้สมัคร");
+  }
+
+  if (!address) {
+    throw new Error("กรุณากรอกที่อยู่");
+  }
+
+  if (!contactPhone) {
+    throw new Error("กรุณากรอกเบอร์โทรติดต่อ");
+  }
+
+  if (rawEntries.length === 0) {
+    throw new Error("กรุณาเพิ่มรุ่นที่สมัครอย่างน้อย 1 รุ่น");
+  }
+
+  const selectedClasses = new Set();
+  const entries = rawEntries.map((entry) => {
+    return validateRegistrationEntry(entry, classes, selectedClasses);
+  });
+  const bikeNumberSet = new Set();
+  for (const entry of entries) {
+    for (const bikeNumber of entry.bikeNumbers) {
+      bikeNumberSet.add(bikeNumber.toLowerCase());
+    }
+  }
+
   const conflictingNumbers = [];
   for (const registration of registrations) {
     if (registration.id === currentId) {
       continue;
     }
 
-    for (const bikeNumber of registration.bikeNumbers || []) {
-      if (bikeNumberSet.has(String(bikeNumber).trim().toLowerCase())) {
-        conflictingNumbers.push(bikeNumber);
+    for (const entry of registration.entries || []) {
+      for (const bikeNumber of entry.bikeNumbers || []) {
+        if (bikeNumberSet.has(String(bikeNumber).trim().toLowerCase())) {
+          conflictingNumbers.push(bikeNumber);
+        }
       }
     }
   }
@@ -259,9 +367,7 @@ function validateRegistration(payload, classes, registrations, currentId = null)
     applicantName,
     address,
     contactPhone,
-    raceClass,
-    vehicleCount,
-    bikeNumbers,
+    entries,
   };
 }
 
@@ -330,13 +436,26 @@ async function handleApi(request, response, url) {
       updatedClasses[classIndex] = nextName;
 
       const updatedRegistrations = registrations.map((registration) => {
-        if (normalizeText(registration.raceClass) !== currentNormalized) {
+        let didChange = false;
+        const nextEntries = (registration.entries || []).map((entry) => {
+          if (normalizeText(entry.raceClass) !== currentNormalized) {
+            return entry;
+          }
+
+          didChange = true;
+          return {
+            ...entry,
+            raceClass: nextName,
+          };
+        });
+
+        if (!didChange) {
           return registration;
         }
 
         return {
           ...registration,
-          raceClass: nextName,
+          entries: nextEntries,
           updatedAt: new Date().toISOString(),
         };
       });
@@ -376,9 +495,11 @@ async function handleApi(request, response, url) {
       }
 
       const targetName = classes[classIndex];
-      const usageCount = registrations.filter((registration) => {
-        return normalizeText(registration.raceClass) === normalizeText(targetName);
-      }).length;
+      const usageCount = registrations.reduce((count, registration) => {
+        return count + (registration.entries || []).filter((entry) => {
+          return normalizeText(entry.raceClass) === normalizeText(targetName);
+        }).length;
+      }, 0);
 
       if (usageCount > 0) {
         return sendError(
@@ -412,7 +533,11 @@ async function handleApi(request, response, url) {
     try {
       const classes = validateClasses(body.classes);
       const registrations = await loadRegistrations();
-      const inUseClasses = new Set(registrations.map((item) => item.raceClass));
+      const inUseClasses = new Set(
+        registrations.flatMap((item) => {
+          return (item.entries || []).map((entry) => entry.raceClass);
+        }),
+      );
       const missingInUseClasses = [...inUseClasses].filter(
         (className) => !classes.includes(className),
       );
@@ -608,7 +733,9 @@ async function start() {
   });
 
   server.listen(PORT, HOST, () => {
-    console.log(`Drag Bike Registration app started at http://${HOST}:${PORT}`);
+    console.log(
+      `งานแข่งรถไฮสปีด บิดหมดปลอก ณ สนามแข่งรถบ้านฉางเรสซิ่ง จ.ระยอง app started at http://${HOST}:${PORT}`
+    );
   });
 }
 

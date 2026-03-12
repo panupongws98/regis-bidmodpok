@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>จัดรุ่นแข่งขัน | งานแข่งรถไฮสปีด บิดหมดปลอก ณ สนามแข่งรถบ้านฉางเรสซิ่ง จ.ระยอง</title>
+    <link rel="stylesheet" href="/styles.css?v=20260312-bidmodplok-copyfix" />
+  </head>
+  <body data-page="classes">
+    <div class="page-shell">
+      <header class="hero">
+        <div class="hero-copy-block">
+          <p class="eyebrow">สนามแข่งรถสกู๊ตเตอร์แดร็ก</p>
+          <div class="hero-title-lockup">
+            <div class="hero-mark hero-mark--logo">
+              <img
+                class="hero-logo"
+                src="/logo-bidmodplok.svg"
+                alt="โลโก้งานแข่งรถไฮสปีด บิดหมดปลอก ณ สนามแข่งรถบ้านฉางเรสซิ่ง จ.ระยอง"
+              />
+            </div>
+            <div class="hero-headline">
+              <h1>งานแข่งรถไฮสปีด บิดหมดปลอก</h1>
+              <p class="hero-event">ณ สนามแข่งรถบ้านฉางเรสซิ่ง จ.ระยอง</p>
+            </div>
+          </div>
+          <p class="hero-tagline">จัดรุ่นแข่งและเตรียมระบบก่อนเปิดโต๊ะ</p>
+          <p class="hero-copy">
+            จัดการรุ่นแข่งขันของงานแข่งรถไฮสปีด บิดหมดปลอก ณ สนามแข่งรถบ้านฉางเรสซิ่ง จ.ระยอง
+            ให้พร้อมก่อนเปิดรับสมัครจริง เพื่อให้หน้าโต๊ะรับสมัคร รายชื่อผู้สมัคร และหน้าสรุป
+            ใช้ชุดรุ่นเดียวกันทั้งระบบ
+          </p>
+          <div class="hero-detail-grid">
+            <div class="hero-detail-card">
+              <span>โหมดงาน</span>
+              <strong>ตั้งค่ารุ่นแข่งขัน</strong>
+            </div>
+            <div class="hero-detail-card">
+              <span>ลำดับใช้งาน</span>
+              <strong>จัดรุ่นก่อนเปิดรับสมัคร</strong>
+            </div>
+          </div>
+        </div>
+        <div class="hero-stats">
+          <div class="stat-card">
+            <span>ผู้สมัครทั้งหมด</span>
+            <strong id="applicantCount">0</strong>
+          </div>
+          <div class="stat-card">
+            <span>รถที่ลงแข่ง</span>
+            <strong id="vehicleCountStat">0</strong>
+          </div>
+          <div class="hero-burst">
+            <span>จัดรุ่นแข่ง</span>
+            <strong>พร้อมอัปเดต</strong>
+            <p>เพิ่ม แก้ไข และลบรุ่นที่เปิดรับสมัครได้จากหน้านี้</p>
+          </div>
+        </div>
+      </header>
+
+      <nav class="system-nav" aria-label="เมนูงานแข่ง">
+        <a class="system-link" href="/index.html">
+          <strong>โต๊ะรับสมัคร</strong>
+          <span>กรอกทีม รุ่นแข่ง และหมายเลขรถเพื่อสร้างรายการใหม่หรือแก้ไขรายการเดิม</span>
+        </a>
+        <a class="system-link" href="/classes.html" aria-current="page">
+          <strong>จัดการรุ่นแข่งขัน</strong>
+          <span>เพิ่ม แก้ไข และจัดชุดรุ่นที่เปิดรับสมัครให้ตรงกับงานแข่ง</span>
+        </a>
+        <a class="system-link" href="/applicants.html">
+          <strong>รายชื่อผู้สมัคร</strong>
+          <span>ค้นหา ตรวจสอบข้อมูล แก้ไขรายการ และพิมพ์ใบสมัครรายคน</span>
+        </a>
+        <a class="system-link" href="/summary.html">
+          <strong>สรุปและพิมพ์เอกสาร</strong>
+          <span>พิมพ์ตารางจับเวลา สรุปรุ่นแข่งขัน และหน้าสายประกบของแต่ละรุ่น</span>
+        </a>
+      </nav>
+
+      <main class="page-main">
+        <section class="panel page-panel">
+          <div class="panel-header">
+            <div>
+              <p class="panel-kicker">Race Class Control</p>
+              <h2>จัดการรุ่นแข่งขัน</h2>
+              <p class="panel-description">
+                เพิ่ม แก้ไข หรือลบรุ่นแข่งขันจากที่นี่ แล้วข้อมูลจะถูกอัปเดตไปยังหน้าโต๊ะรับสมัครและหน้าสรุปทันที
+                เพื่อให้การใช้งานหน้างานเป็นชุดข้อมูลเดียวกันทั้งหมด
+              </p>
+            </div>
+            <div class="page-tools">
+              <a class="button button-secondary" href="/index.html">
+                ไปหน้าโต๊ะรับสมัคร
+              </a>
+            </div>
+          </div>
+
+          <div class="status-banner" id="statusBanner">
+            พร้อมจัดการรุ่นแข่งขันของงานแข่งรถไฮสปีด บิดหมดปลอก ณ สนามแข่งรถบ้านฉางเรสซิ่ง จ.ระยอง
+          </div>
+
+          <div class="class-manager-body class-manager-body-standalone">
+            <div class="class-manager-header">
+              <div>
+                <h3>รายการรุ่นของงาน</h3>
+                <p>เพิ่ม แก้ไข และลบรุ่นที่เปิดรับสมัครได้จากรายการด้านล่าง</p>
+              </div>
+              <span class="badge badge-soft" id="classCountBadge">0 รุ่น</span>
+            </div>
+
+            <form id="classForm" class="class-form">
+              <input
+                id="newClassInput"
+                type="text"
+                placeholder="เพิ่มรุ่นแข่งใหม่"
+                maxlength="80"
+              />
+              <button class="button button-secondary" type="submit">
+                เพิ่มรุ่น
+              </button>
+            </form>
+
+            <div id="classList" class="class-list"></div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="/app.js?v=20260312-bidmodplok-copyfix"></script>
+  </body>
+</html>

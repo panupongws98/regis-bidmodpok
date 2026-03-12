@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>สรุปและพิมพ์เอกสาร | งานแข่งรถไฮสปีด บิดหมดปลอก ณ สนามแข่งรถบ้านฉางเรสซิ่ง จ.ระยอง</title>
+    <link rel="stylesheet" href="/styles.css?v=20260312-bidmodplok-copyfix" />
+  </head>
+  <body data-page="summary">
+    <div class="page-shell">
+      <header class="hero">
+        <div class="hero-copy-block">
+          <p class="eyebrow">สนามแข่งรถสกู๊ตเตอร์แดร็ก</p>
+          <div class="hero-title-lockup">
+            <div class="hero-mark hero-mark--logo">
+              <img
+                class="hero-logo"
+                src="/logo-bidmodplok.svg"
+                alt="โลโก้งานแข่งรถไฮสปีด บิดหมดปลอก ณ สนามแข่งรถบ้านฉางเรสซิ่ง จ.ระยอง"
+              />
+            </div>
+            <div class="hero-headline">
+              <h1>งานแข่งรถไฮสปีด บิดหมดปลอก</h1>
+              <p class="hero-event">ณ สนามแข่งรถบ้านฉางเรสซิ่ง จ.ระยอง</p>
+            </div>
+          </div>
+          <p class="hero-tagline">สรุปรุ่นแข่งขัน พิมพ์เอกสาร และจัดสายประกบ</p>
+          <p class="hero-copy">
+            รวมเครื่องมือสรุปรุ่น พิมพ์ตารางจับเวลา และจัดสายประกบสำหรับงานแข่งรถไฮสปีด บิดหมดปลอก ณ สนามแข่งรถบ้านฉางเรสซิ่ง จ.ระยอง
+            เพื่อใช้งานหน้าเวที หน้าเทคนิค และจุดควบคุมการแข่งขันในโทนเดียวกับโลโก้งาน
+          </p>
+          <div class="hero-detail-grid">
+            <div class="hero-detail-card">
+              <span>โหมดงาน</span>
+              <strong>สร้างเอกสารการแข่งขัน</strong>
+            </div>
+            <div class="hero-detail-card">
+              <span>การใช้งาน</span>
+              <strong>พิมพ์ตารางจับเวลาและสายประกบ</strong>
+            </div>
+          </div>
+        </div>
+        <div class="hero-stats">
+          <div class="stat-card">
+            <span>ผู้สมัครทั้งหมด</span>
+            <strong id="applicantCount">0</strong>
+          </div>
+          <div class="stat-card">
+            <span>รถที่ลงแข่ง</span>
+            <strong id="vehicleCountStat">0</strong>
+          </div>
+          <div class="hero-burst">
+            <span>เอกสารการแข่งขัน</span>
+            <strong>พร้อมพิมพ์</strong>
+            <p>สรุปรุ่น ตารางจับเวลา และสายประกบจากหน้าเดียว</p>
+          </div>
+        </div>
+      </header>
+
+      <nav class="system-nav" aria-label="เมนูงานแข่ง">
+        <a class="system-link" href="/index.html">
+          <strong>โต๊ะรับสมัคร</strong>
+          <span>กรอกทีม รุ่นแข่ง และหมายเลขรถเพื่อสร้างรายการใหม่หรือแก้ไขรายการเดิม</span>
+        </a>
+        <a class="system-link" href="/classes.html">
+          <strong>จัดการรุ่นแข่งขัน</strong>
+          <span>เพิ่ม แก้ไข และจัดชุดรุ่นที่เปิดรับสมัครให้ตรงกับงานแข่ง</span>
+        </a>
+        <a class="system-link" href="/applicants.html">
+          <strong>รายชื่อผู้สมัคร</strong>
+          <span>ค้นหา ตรวจสอบข้อมูล แก้ไขรายการ และพิมพ์ใบสมัครรายคน</span>
+        </a>
+        <a class="system-link" href="/summary.html" aria-current="page">
+          <strong>สรุปและพิมพ์เอกสาร</strong>
+          <span>พิมพ์ตารางจับเวลา สรุปรุ่นแข่งขัน และหน้าสายประกบของแต่ละรุ่น</span>
+        </a>
+      </nav>
+
+      <main class="page-main">
+        <section class="summary-panel summary-panel-standalone">
+          <div class="summary-panel-header">
+            <div>
+              <p class="panel-kicker">Race Summary Sheets</p>
+              <h2>สรุปรุ่นและสายประกบ</h2>
+              <p class="summary-panel-copy">
+                เลือกรุ่นแข่งขันและแบบฟอร์มสรุป แล้วพิมพ์ออกมาในรูปแบบที่พร้อมใช้งานหน้า Stage, Pre-Stage
+                และจุดควบคุมการแข่งขันของงานแข่งรถไฮสปีด บิดหมดปลอก ณ สนามแข่งรถบ้านฉางเรสซิ่ง จ.ระยอง
+              </p>
+            </div>
+            <button class="button button-primary" type="button" id="printSummaryButton">
+              พิมพ์หน้าสรุป
+            </button>
+          </div>
+
+          <div class="status-banner" id="statusBanner">
+            พร้อมสร้างหน้าสรุปและพิมพ์เอกสารงานแข่งรถไฮสปีด บิดหมดปลอก ณ สนามแข่งรถบ้านฉางเรสซิ่ง จ.ระยอง
+          </div>
+
+          <div class="summary-controls">
+            <label class="field summary-select-field">
+              <span>เลือกรุ่นที่ต้องการสรุป</span>
+              <select id="summaryClassSelect"></select>
+            </label>
+          </div>
+
+          <div id="summaryTemplateList" class="summary-template-list"></div>
+          <div id="summaryPreviewMeta" class="summary-preview-meta"></div>
+          <div id="summaryPreview" class="summary-preview-shell"></div>
+        </section>
+      </main>
+    </div>
+
+    <script src="/app.js?v=20260312-bidmodplok-copyfix"></script>
+  </body>
+</html>
