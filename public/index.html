@@ -97,67 +97,118 @@
             </div>
           </div>
 
-          <div class="status-banner" id="statusBanner">
+          <div class="status-banner" id="statusBanner" role="status" aria-live="polite">
             พร้อมเปิดรับผู้สมัครงานแข่งรถไฮสปีด บิดหมดปลอก ณ สนามแข่งรถบ้านฉางเรสซิ่ง จ.ระยอง
           </div>
 
+          <div class="insight-strip" aria-label="จุดเด่นของโต๊ะรับสมัคร">
+            <div class="insight-pill">
+              <strong>ตรวจเลขรถซ้ำอัตโนมัติ</strong>
+              <span>ช่วยลดความผิดพลาดก่อนบันทึกข้อมูลจริงหน้างาน</span>
+            </div>
+            <div class="insight-pill">
+              <strong>สมัครได้หลายรุ่นในใบเดียว</strong>
+              <span>เพิ่มรุ่นแข่งต่อเนื่องโดยไม่ต้องสร้างรายการใหม่หลายครั้ง</span>
+            </div>
+            <div class="insight-pill">
+              <strong>พร้อมแก้ไขและพิมพ์ต่อได้ทันที</strong>
+              <span>เชื่อมกับหน้ารายชื่อผู้สมัครและหน้าสรุปในชุดข้อมูลเดียวกัน</span>
+            </div>
+          </div>
+
           <form id="registrationForm" class="registration-form">
-            <label class="field">
-              <span>ชื่อผู้สมัคร (ชื่อร้านค้า/ชื่อทีม)</span>
-              <input
-                id="applicantName"
-                name="applicantName"
-                type="text"
-                placeholder="เช่น ทีมช่างนนท์ ไฮสปีด"
-                maxlength="120"
-                required
-              />
-            </label>
-
-            <label class="field">
-              <span>ที่อยู่</span>
-              <textarea
-                id="address"
-                name="address"
-                rows="3"
-                placeholder="กรอกที่อยู่สำหรับติดต่อ"
-                maxlength="300"
-                required
-              ></textarea>
-            </label>
-
-            <label class="field">
-              <span>เบอร์โทรติดต่อ</span>
-              <input
-                id="contactPhone"
-                name="contactPhone"
-                type="tel"
-                placeholder="เช่น 08X-XXX-XXXX"
-                maxlength="20"
-                required
-              />
-            </label>
-
-            <div class="field">
-              <div class="field-heading">
-                <span>รุ่นที่สมัครในทีมนี้</span>
-                <small>1 ทีมสามารถเพิ่มได้หลายรุ่น แต่ห้ามเลือกรุ่นซ้ำในใบสมัครเดียวกัน</small>
+            <section class="form-section">
+              <div class="form-section-header">
+                <div>
+                  <p class="section-kicker">Step 1</p>
+                  <h3>ข้อมูลทีมและการติดต่อ</h3>
+                  <p>เริ่มจากชื่อทีม ที่อยู่ และเบอร์โทรให้ครบก่อน เพื่อให้ค้นหาและติดต่อกลับได้ง่ายในภายหลัง</p>
+                </div>
+                <span class="badge badge-soft">ข้อมูลหลักของใบสมัคร</span>
               </div>
-              <div class="class-entry-toolbar">
-                <button class="button button-secondary" type="button" id="addClassEntryButton">
-                  เพิ่มรุ่นที่สมัคร
+
+              <div class="form-grid form-grid--primary">
+                <label class="field">
+                  <span>ชื่อผู้สมัคร (ชื่อร้านค้า/ชื่อทีม)</span>
+                  <input
+                    id="applicantName"
+                    name="applicantName"
+                    type="text"
+                    placeholder="เช่น ทีมช่างนนท์ ไฮสปีด"
+                    maxlength="120"
+                    autocomplete="organization"
+                    required
+                  />
+                  <small class="field-hint">ชื่อชุดนี้จะแสดงบนรายการผู้สมัคร ใบสมัคร และเอกสารสรุป</small>
+                </label>
+
+                <label class="field">
+                  <span>เบอร์โทรติดต่อ</span>
+                  <input
+                    id="contactPhone"
+                    name="contactPhone"
+                    type="tel"
+                    inputmode="tel"
+                    placeholder="เช่น 08X-XXX-XXXX"
+                    maxlength="20"
+                    autocomplete="tel"
+                    required
+                  />
+                  <small class="field-hint">ใช้เบอร์ที่ติดต่อเจ้าของทีมหรือผู้ประสานงานได้ทันที</small>
+                </label>
+
+                <label class="field field--wide">
+                  <span>ที่อยู่</span>
+                  <textarea
+                    id="address"
+                    name="address"
+                    rows="3"
+                    placeholder="กรอกที่อยู่สำหรับติดต่อ"
+                    maxlength="300"
+                    autocomplete="street-address"
+                    required
+                  ></textarea>
+                </label>
+              </div>
+            </section>
+
+            <section class="form-section">
+              <div class="form-section-header">
+                <div>
+                  <p class="section-kicker">Step 2</p>
+                  <h3>รุ่นแข่งและหมายเลขรถ</h3>
+                  <p>เพิ่มรุ่นที่สมัครได้หลายรายการในใบเดียว และระบบจะช่วยตรวจทั้งรุ่นซ้ำในใบสมัครกับเลขรถซ้ำข้ามทีมให้อัตโนมัติ</p>
+                </div>
+                <span class="badge badge-soft">กดเพิ่มได้ตามจำนวนรุ่น</span>
+              </div>
+
+              <div class="field">
+                <div class="field-heading">
+                  <span>รุ่นที่สมัครในทีมนี้</span>
+                  <small>1 ทีมสามารถเพิ่มได้หลายรุ่น แต่ห้ามเลือกรุ่นซ้ำในใบสมัครเดียวกัน</small>
+                </div>
+                <div class="class-entry-toolbar">
+                  <button class="button button-secondary" type="button" id="addClassEntryButton">
+                    เพิ่มรุ่นที่สมัคร
+                  </button>
+                </div>
+                <div id="classEntriesContainer" class="class-entry-list"></div>
+              </div>
+            </section>
+
+            <div class="form-actions-bar">
+              <div class="form-actions-copy">
+                <strong>พร้อมบันทึกเมื่อข้อมูลครบทุกช่องที่จำเป็น</strong>
+                <span>กด <kbd>Ctrl</kbd> + <kbd>Enter</kbd> หรือ <kbd>Cmd</kbd> + <kbd>Enter</kbd> เพื่อบันทึกได้เร็วขึ้นเมื่อกำลังกรอกฟอร์มอยู่</span>
+              </div>
+              <div class="form-actions">
+                <button class="button button-primary" type="submit" id="submitButton">
+                  บันทึกข้อมูล
+                </button>
+                <button class="button button-secondary" type="button" id="cancelEditButton">
+                  ล้างฟอร์ม
                 </button>
               </div>
-              <div id="classEntriesContainer" class="class-entry-list"></div>
-            </div>
-
-            <div class="form-actions">
-              <button class="button button-primary" type="submit" id="submitButton">
-                บันทึกข้อมูล
-              </button>
-              <button class="button button-secondary" type="button" id="cancelEditButton">
-                ล้างฟอร์ม
-              </button>
             </div>
           </form>
         </section>

@@ -63,10 +63,10 @@ const SUMMARY_ROWS_PER_PAGE = {
 };
 const currentPage = document.body.dataset.page || "registration";
 const DEFAULT_STATUS_MESSAGES = {
-  registration: `พร้อมเปิดรับผู้สมัคร${EVENT_BRAND.fullName}`,
-  classes: `พร้อมจัดการรุ่นแข่งขันของ${EVENT_BRAND.fullName}`,
-  applicants: `พร้อมแสดงรายชื่อผู้สมัคร${EVENT_BRAND.fullName}`,
-  summary: `พร้อมสร้างหน้าสรุปและพิมพ์เอกสาร${EVENT_BRAND.fullName}`,
+  registration: `พร้อมเปิดรับผู้สมัคร ${EVENT_BRAND.fullName}`,
+  classes: `พร้อมจัดการรุ่นแข่งขันของ ${EVENT_BRAND.fullName}`,
+  applicants: `พร้อมแสดงรายชื่อผู้สมัคร ${EVENT_BRAND.fullName}`,
+  summary: `พร้อมสร้างหน้าสรุปและพิมพ์เอกสาร ${EVENT_BRAND.fullName}`,
 };
 const REGISTRATIONS_PER_PAGE = 5;
 
@@ -205,6 +205,7 @@ const elements = {
   registrationPagination: document.querySelector("#registrationPagination"),
   resetPrintColumnsButton: document.querySelector("#resetPrintColumnsButton"),
   searchInput: document.querySelector("#searchInput"),
+  searchResultsMeta: document.querySelector("#searchResultsMeta"),
   statusBanner: document.querySelector("#statusBanner"),
   submitButton: document.querySelector("#submitButton"),
   summaryClassSelect: document.querySelector("#summaryClassSelect"),
@@ -470,6 +471,100 @@ function applyStatusState(target, message, tone) {
 function setStatus(message, tone = "success") {
   applyStatusState(elements.statusBanner, message, tone);
   applyStatusState(elements.printModalStatus, message, tone);
+}
+
+function prefersReducedMotion() {
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+function isEditableTarget(target) {
+  return target instanceof HTMLElement && (
+    target.isContentEditable ||
+    ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)
+  );
+}
+
+function scrollRegistrationFormIntoView() {
+  if (!hasElement("registrationForm")) {
+    return;
+  }
+
+  elements.registrationForm.scrollIntoView({
+    behavior: prefersReducedMotion() ? "auto" : "smooth",
+    block: "start",
+  });
+}
+
+function focusApplicantNameInput(selectText = false) {
+  if (!hasElement("registrationForm")) {
+    return;
+  }
+
+  const applicantNameInput = elements.registrationForm.elements.namedItem("applicantName");
+  if (!(applicantNameInput instanceof HTMLElement)) {
+    return;
+  }
+
+  applicantNameInput.focus({ preventScroll: true });
+  if (selectText && typeof applicantNameInput.select === "function") {
+    applicantNameInput.select();
+  }
+}
+
+function focusClassEntryField(entryIndex, fieldName) {
+  if (!hasElement("classEntriesContainer")) {
+    return;
+  }
+
+  const selector = `[data-entry-index="${entryIndex}"] [data-entry-field="${fieldName}"]`;
+  const field = elements.classEntriesContainer.querySelector(selector);
+  if (!(field instanceof HTMLElement)) {
+    return;
+  }
+
+  field.focus({ preventScroll: true });
+  if (typeof field.select === "function") {
+    field.select();
+  }
+}
+
+function renderSearchResultsMeta(totalFiltered, visibleCount) {
+  if (!hasElement("searchResultsMeta")) {
+    return;
+  }
+
+  const totalRegistrations = state.registrations.length;
+  const searchTerm = elements.searchInput?.value.trim() || "";
+
+  if (searchTerm) {
+    const safeSearchTerm = escapeHtml(searchTerm);
+    if (totalFiltered > 0) {
+      elements.searchResultsMeta.innerHTML = `
+        <strong>พบ ${totalFiltered} รายการ</strong>
+        <span>จากคำค้นหา "${safeSearchTerm}" และกำลังแสดง ${visibleCount} รายการในหน้านี้</span>
+      `;
+      return;
+    }
+
+    elements.searchResultsMeta.innerHTML = `
+      <strong>ไม่พบรายการที่ตรงคำค้นหา</strong>
+      <span>ลองค้นด้วยชื่อทีม รุ่นแข่ง หรือหมายเลขรถจากทั้งหมด ${totalRegistrations} รายการ</span>
+    `;
+    return;
+  }
+
+  if (totalRegistrations > 0) {
+    elements.searchResultsMeta.innerHTML = `
+      <strong>ทั้งหมด ${totalRegistrations} รายการ</strong>
+      <span>กำลังแสดง ${visibleCount} รายการในหน้านี้ พร้อมเปิดแก้ไขหรือพิมพ์ต่อได้ทันที</span>
+    `;
+    return;
+  }
+
+  elements.searchResultsMeta.innerHTML = `
+    <strong>ยังไม่มีข้อมูลผู้สมัคร</strong>
+    <span>เริ่มต้นที่หน้าโต๊ะรับสมัคร แล้วรายการจะถูกส่งมาที่หน้านี้อัตโนมัติ</span>
+  `;
 }
 
 function formatDate(value) {
@@ -2249,6 +2344,7 @@ function renderRegistrations() {
   const pageCount = clampRegistrationPage(registrations.length);
 
   if (registrations.length === 0) {
+    renderSearchResultsMeta(0, 0);
     elements.registrationList.innerHTML = `
       <div class="empty-state">
         ยังไม่มีข้อมูลผู้สมัครในรายการนี้ หรือไม่พบข้อมูลจากคำค้นหา
@@ -2263,6 +2359,7 @@ function renderRegistrations() {
     startIndex,
     startIndex + REGISTRATIONS_PER_PAGE,
   );
+  renderSearchResultsMeta(registrations.length, visibleRegistrations.length);
 
   elements.registrationList.innerHTML = visibleRegistrations
     .map((item) => {
@@ -2373,6 +2470,9 @@ function resetForm() {
   elements.submitButton.textContent = "บันทึกข้อมูล";
   renderClassEntries([createEmptyRegistrationEntry()]);
   setStatus(getDefaultStatusMessage());
+  window.requestAnimationFrame(() => {
+    focusApplicantNameInput();
+  });
 }
 
 function fillForm(registration) {
@@ -2394,6 +2494,10 @@ function fillForm(registration) {
     };
   }));
   setStatus(`กำลังแก้ไขข้อมูลของ ${registration.applicantName}`, "warning");
+  scrollRegistrationFormIntoView();
+  window.requestAnimationFrame(() => {
+    focusApplicantNameInput(true);
+  });
 }
 
 async function loadInitialData() {
@@ -2402,6 +2506,7 @@ async function loadInitialData() {
   renderPrintColumnConfigurator();
   renderClassEntries([createEmptyRegistrationEntry()]);
 }
+
 function buildPrintShell(title, body) {
   const usesSummaryLayout = body.includes("summary-sheet");
   const usesBracketLayout = body.includes("summary-sheet-bracket");
@@ -3063,8 +3168,12 @@ function bindEvents() {
   bindIfPresent(elements.cancelEditButton, "click", resetForm);
   bindIfPresent(elements.addClassEntryButton, "click", () => {
     const entries = collectRegistrationEntries();
+    const nextEntryIndex = entries.length;
     entries.push(createEmptyRegistrationEntry());
     renderClassEntries(entries);
+    window.requestAnimationFrame(() => {
+      focusClassEntryField(nextEntryIndex, "raceClass");
+    });
   });
   bindIfPresent(elements.classForm, "submit", handleClassSubmit);
   bindIfPresent(elements.classEntriesContainer, "click", (event) => {
@@ -3082,7 +3191,7 @@ function bindEvents() {
     entries.splice(entryIndex, 1);
     renderClassEntries(entries);
   });
-  bindIfPresent(elements.classEntriesContainer, "input", (event) => {
+  bindIfPresent(elements.classEntriesContainer, "change", (event) => {
     const target = event.target.closest("[data-entry-field='vehicleCount']");
     if (!target) {
       return;
@@ -3100,6 +3209,9 @@ function bindEvents() {
       vehicleCount: target.value,
     };
     renderClassEntries(entries);
+    window.requestAnimationFrame(() => {
+      focusClassEntryField(entryIndex, "bikeNumber");
+    });
   });
   bindIfPresent(elements.registrationForm, "submit", handleSubmit);
   bindIfPresent(elements.openPrintModalButton, "click", openPrintModal);
@@ -3124,11 +3236,46 @@ function bindEvents() {
   bindIfPresent(elements.printAllButton, "click", printAllRegistrations);
   bindIfPresent(elements.printSummaryButton, "click", printSummaryDocument);
   document.addEventListener("keydown", (event) => {
-    if (event.key !== "Escape") {
+    if (
+      event.key === "/" &&
+      hasElement("searchInput") &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      !event.altKey &&
+      !isEditableTarget(event.target)
+    ) {
+      event.preventDefault();
+      elements.searchInput.focus();
+      elements.searchInput.select();
       return;
     }
 
-    closePrintModal();
+    if (
+      (event.ctrlKey || event.metaKey) &&
+      event.key === "Enter" &&
+      hasElement("registrationForm") &&
+      elements.registrationForm.contains(document.activeElement)
+    ) {
+      event.preventDefault();
+      elements.registrationForm.requestSubmit();
+      return;
+    }
+
+    if (
+      event.key === "Escape" &&
+      hasElement("searchInput") &&
+      document.activeElement === elements.searchInput &&
+      elements.searchInput.value
+    ) {
+      elements.searchInput.value = "";
+      resetRegistrationPage();
+      renderRegistrations();
+      return;
+    }
+
+    if (event.key === "Escape") {
+      closePrintModal();
+    }
   });
 
   bindIfPresent(elements.summaryClassSelect, "change", (event) => {

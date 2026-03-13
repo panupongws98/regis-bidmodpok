@@ -3,8 +3,8 @@ const path = require("path");
 const { randomUUID } = require("crypto");
 const fs = require("fs/promises");
 
-const HOST = "0.0.0.0";
-const PORT = process.env.PORT || 3000;
+const HOST = process.env.HOST || "0.0.0.0";
+const DEFAULT_PORT = getPortFromEnvironment(process.env.PORT);
 const MAX_BODY_SIZE = 1024 * 1024;
 const MAX_VEHICLES = 20;
 
@@ -34,6 +34,19 @@ const CONTENT_TYPES = {
   ".svg": "image/svg+xml",
   ".txt": "text/plain; charset=utf-8",
 };
+
+function getPortFromEnvironment(value) {
+  if (typeof value !== "string" || value.trim() === "") {
+    return 3000;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    return 3000;
+  }
+
+  return parsed;
+}
 
 function sanitizeText(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -224,6 +237,14 @@ function sendError(response, statusCode, message) {
   sendJson(response, statusCode, { error: message });
 }
 
+function sendText(response, statusCode, message) {
+  response.writeHead(statusCode, {
+    "Content-Type": CONTENT_TYPES[".txt"],
+    "Cache-Control": "no-store",
+  });
+  response.end(message);
+}
+
 async function parseRequestBody(request) {
   const chunks = [];
   let size = 0;
@@ -244,6 +265,20 @@ async function parseRequestBody(request) {
     return JSON.parse(Buffer.concat(chunks).toString("utf8"));
   } catch {
     throw new Error("INVALID_JSON");
+  }
+}
+
+async function parseJsonBodyOrSendError(request, response) {
+  try {
+    return await parseRequestBody(request);
+  } catch (error) {
+    if (error.message === "PAYLOAD_TOO_LARGE") {
+      sendError(response, 413, "ข้อมูลมีขนาดใหญ่เกินไป");
+      return null;
+    }
+
+    sendError(response, 400, "รูปแบบข้อมูลไม่ถูกต้อง");
+    return null;
   }
 }
 
@@ -378,16 +413,9 @@ async function handleApi(request, response, url) {
   }
 
   if (request.method === "POST" && url.pathname === "/api/meta/classes") {
-    let body;
-
-    try {
-      body = await parseRequestBody(request);
-    } catch (error) {
-      if (error.message === "PAYLOAD_TOO_LARGE") {
-        return sendError(response, 413, "ข้อมูลมีขนาดใหญ่เกินไป");
-      }
-
-      return sendError(response, 400, "รูปแบบข้อมูลไม่ถูกต้อง");
+    const body = await parseJsonBodyOrSendError(request, response);
+    if (body === null) {
+      return;
     }
 
     try {
@@ -404,16 +432,9 @@ async function handleApi(request, response, url) {
   }
 
   if (request.method === "PUT" && url.pathname === "/api/meta/classes/rename") {
-    let body;
-
-    try {
-      body = await parseRequestBody(request);
-    } catch (error) {
-      if (error.message === "PAYLOAD_TOO_LARGE") {
-        return sendError(response, 413, "ข้อมูลมีขนาดใหญ่เกินไป");
-      }
-
-      return sendError(response, 400, "รูปแบบข้อมูลไม่ถูกต้อง");
+    const body = await parseJsonBodyOrSendError(request, response);
+    if (body === null) {
+      return;
     }
 
     try {
@@ -518,16 +539,9 @@ async function handleApi(request, response, url) {
   }
 
   if (request.method === "PUT" && url.pathname === "/api/meta/classes") {
-    let body;
-
-    try {
-      body = await parseRequestBody(request);
-    } catch (error) {
-      if (error.message === "PAYLOAD_TOO_LARGE") {
-        return sendError(response, 413, "ข้อมูลมีขนาดใหญ่เกินไป");
-      }
-
-      return sendError(response, 400, "รูปแบบข้อมูลไม่ถูกต้อง");
+    const body = await parseJsonBodyOrSendError(request, response);
+    if (body === null) {
+      return;
     }
 
     try {
@@ -566,16 +580,9 @@ async function handleApi(request, response, url) {
   }
 
   if (request.method === "POST" && url.pathname === "/api/registrations") {
-    let body;
-
-    try {
-      body = await parseRequestBody(request);
-    } catch (error) {
-      if (error.message === "PAYLOAD_TOO_LARGE") {
-        return sendError(response, 413, "ข้อมูลมีขนาดใหญ่เกินไป");
-      }
-
-      return sendError(response, 400, "รูปแบบข้อมูลไม่ถูกต้อง");
+    const body = await parseJsonBodyOrSendError(request, response);
+    if (body === null) {
+      return;
     }
 
     const [classes, registrations] = await Promise.all([
@@ -621,16 +628,9 @@ async function handleApi(request, response, url) {
   }
 
   if (request.method === "PUT") {
-    let body;
-
-    try {
-      body = await parseRequestBody(request);
-    } catch (error) {
-      if (error.message === "PAYLOAD_TOO_LARGE") {
-        return sendError(response, 413, "ข้อมูลมีขนาดใหญ่เกินไป");
-      }
-
-      return sendError(response, 400, "รูปแบบข้อมูลไม่ถูกต้อง");
+    const body = await parseJsonBodyOrSendError(request, response);
+    if (body === null) {
+      return;
     }
 
     const classes = await loadClasses();
@@ -672,22 +672,16 @@ async function sendStaticFile(response, filePath) {
     response.end(fileBuffer);
   } catch (error) {
     if (error.code === "ENOENT") {
-      response.writeHead(404, {
-        "Content-Type": CONTENT_TYPES[".txt"],
-      });
-      response.end("Not found");
+      sendText(response, 404, "Not found");
       return;
     }
 
-    response.writeHead(500, {
-      "Content-Type": CONTENT_TYPES[".txt"],
-    });
-    response.end("Internal server error");
+    sendText(response, 500, "Internal server error");
   }
 }
 
 async function handleRequest(request, response) {
-  const host = request.headers.host || `${HOST}:${PORT}`;
+  const host = request.headers.host || `${HOST}:${DEFAULT_PORT}`;
   const url = new URL(request.url || "/", `http://${host}`);
 
   if (url.pathname.startsWith("/api/")) {
@@ -699,10 +693,7 @@ async function handleRequest(request, response) {
   }
 
   if (request.method !== "GET") {
-    response.writeHead(405, {
-      "Content-Type": CONTENT_TYPES[".txt"],
-    });
-    response.end("Method not allowed");
+    sendText(response, 405, "Method not allowed");
     return;
   }
 
@@ -712,37 +703,69 @@ async function handleRequest(request, response) {
   const filePath = path.join(PUBLIC_DIR, safePath);
 
   if (!filePath.startsWith(PUBLIC_DIR)) {
-    response.writeHead(403, {
-      "Content-Type": CONTENT_TYPES[".txt"],
-    });
-    response.end("Forbidden");
+    sendText(response, 403, "Forbidden");
     return;
   }
 
   await sendStaticFile(response, filePath);
 }
 
-async function start() {
-  await ensureDataFiles();
-
-  const server = http.createServer((request, response) => {
+function createServer() {
+  return http.createServer((request, response) => {
     handleRequest(request, response).catch((error) => {
       console.error(error);
       sendError(response, 500, "เกิดข้อผิดพลาดภายในระบบ");
     });
   });
+}
 
-  server.listen(PORT, () => {
-    console.log(
-      `งานแข่งรถไฮสปีด บิดหมดปลอก ณ สนามแข่งรถบ้านฉางเรสซิ่ง จ.ระยอง app started at http://${HOST}:${PORT}`
-    );
+function listen(server, port, host) {
+  return new Promise((resolve, reject) => {
+    const cleanup = () => {
+      server.off("error", handleError);
+      server.off("listening", handleListening);
+    };
+    const handleError = (error) => {
+      cleanup();
+      reject(error);
+    };
+    const handleListening = () => {
+      cleanup();
+      resolve();
+    };
+
+    server.once("error", handleError);
+    server.once("listening", handleListening);
+    server.listen(port, host);
   });
 }
 
-start().catch((error) => {
-  console.error("Unable to start server", error);
-  process.exitCode = 1;
-});
+async function start({ host = HOST, port = DEFAULT_PORT } = {}) {
+  await ensureDataFiles();
 
+  const server = createServer();
+  await listen(server, port, host);
 
+  const address = server.address();
+  const activePort =
+    address && typeof address === "object" ? address.port : port;
+
+  console.log(
+    `งานแข่งรถไฮสปีด บิดหมดปลอก ณ สนามแข่งรถบ้านฉางเรสซิ่ง จ.ระยอง app started at http://${host}:${activePort}`
+  );
+
+  return server;
+}
+
+if (require.main === module) {
+  start().catch((error) => {
+    console.error("Unable to start server", error);
+    process.exitCode = 1;
+  });
+}
+
+module.exports = {
+  createServer,
+  start,
+};
 

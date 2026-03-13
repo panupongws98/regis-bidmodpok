@@ -95,8 +95,23 @@
             </div>
           </div>
 
-          <div class="status-banner" id="statusBanner">
+          <div class="status-banner" id="statusBanner" role="status" aria-live="polite">
             พร้อมจัดการรุ่นแข่งขันของงานแข่งรถไฮสปีด บิดหมดปลอก ณ สนามแข่งรถบ้านฉางเรสซิ่ง จ.ระยอง
+          </div>
+
+          <div class="insight-strip" aria-label="แนวทางจัดการรุ่นแข่งขัน">
+            <div class="insight-pill">
+              <strong>เพิ่มรุ่นใหม่ได้ทันที</strong>
+              <span>รายการรุ่นจะเชื่อมไปยังหน้าโต๊ะรับสมัครและหน้าสรุปอัตโนมัติ</span>
+            </div>
+            <div class="insight-pill">
+              <strong>แก้ชื่อรุ่นแล้วข้อมูลตามให้</strong>
+              <span>หากมีผู้สมัครอยู่ ระบบจะอัปเดตชื่อรุ่นในข้อมูลเดิมให้พร้อมกัน</span>
+            </div>
+            <div class="insight-pill">
+              <strong>กันการลบผิดรุ่น</strong>
+              <span>รุ่นที่มีการใช้งานอยู่จะไม่ถูกลบทิ้งจนกว่าจะจัดการข้อมูลที่เกี่ยวข้อง</span>
+            </div>
           </div>
 
           <div class="class-manager-body class-manager-body-standalone">
@@ -108,13 +123,16 @@
               <span class="badge badge-soft" id="classCountBadge">0 รุ่น</span>
             </div>
 
-            <form id="classForm" class="class-form">
-              <input
-                id="newClassInput"
-                type="text"
-                placeholder="เพิ่มรุ่นแข่งใหม่"
-                maxlength="80"
-              />
+            <form id="classForm" class="class-form class-form-surface">
+              <label class="field">
+                <span>ชื่อรุ่นแข่งขันใหม่</span>
+                <input
+                  id="newClassInput"
+                  type="text"
+                  placeholder="เพิ่มรุ่นแข่งใหม่"
+                  maxlength="80"
+                />
+              </label>
               <button class="button button-secondary" type="submit">
                 เพิ่มรุ่น
               </button>

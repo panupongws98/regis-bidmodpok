@@ -4,7 +4,8 @@
   "description": "เว็บแอพแบบ local สำหรับบันทึก จัดเก็บ ค้นหา แก้ไข ลบ และพิมพ์ข้อมูลผู้สมัครแข่งขันแด็กไบค์ โดยข้อมูลจะถูกเก็บไว้ในไฟล์ JSON ภายในเครื่อง",
   "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "check": "node --check server.js && node --check public/app.js",
+    "test": "npm run check && node tests/server.test.js",
     "start": "node server.js"
   },
   "repository": {

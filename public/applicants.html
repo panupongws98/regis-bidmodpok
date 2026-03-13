@@ -97,12 +97,20 @@
             </div>
           </div>
 
-          <div class="status-banner" id="statusBanner">
+          <div class="status-banner" id="statusBanner" role="status" aria-live="polite">
             พร้อมแสดงรายชื่อผู้สมัครงานแข่งรถไฮสปีด บิดหมดปลอก ณ สนามแข่งรถบ้านฉางเรสซิ่ง จ.ระยอง
           </div>
 
-          <div class="toolbar">
-            <label class="search-box">
+          <div class="toolbar toolbar-surface">
+            <div class="search-toolbar-head">
+              <div>
+                <p class="section-kicker">Quick Search</p>
+                <h3>ค้นหาและจัดการรายการสมัคร</h3>
+              </div>
+              <div id="searchResultsMeta" class="results-meta" aria-live="polite"></div>
+            </div>
+
+            <label class="search-box search-box-strong">
               <span>ค้นหา</span>
               <input
                 id="searchInput"
@@ -110,8 +118,11 @@
                 placeholder="ค้นหาจากชื่อทีม, ที่อยู่, เบอร์โทร, รุ่น, หมายเลขรถ"
               />
             </label>
-            <div class="toolbar-note">
-              กดปุ่มแก้ไขในแต่ละรายการเพื่อเปิดหน้าโต๊ะรับสมัครพร้อมข้อมูลเดิมของผู้สมัครคนนั้น
+
+            <div class="shortcut-list" aria-label="ตัวช่วยการใช้งาน">
+              <span class="shortcut-chip">กด <kbd>/</kbd> เพื่อโฟกัสช่องค้นหา</span>
+              <span class="shortcut-chip">กดแก้ไขแล้วระบบจะพากลับไปหน้าโต๊ะรับสมัครพร้อมข้อมูลเดิม</span>
+              <span class="shortcut-chip">คัดลอกเลขรถหรือพิมพ์ใบสมัครได้จากแต่ละรายการทันที</span>
             </div>
           </div>
 
@@ -137,7 +148,7 @@
           </button>
         </div>
 
-        <div class="status-banner print-modal-banner" id="printModalStatus">
+        <div class="status-banner print-modal-banner" id="printModalStatus" role="status" aria-live="polite">
           พร้อมพิมพ์รายชื่อผู้สมัครรวมของงานแข่งรถไฮสปีด บิดหมดปลอก ณ สนามแข่งรถบ้านฉางเรสซิ่ง จ.ระยอง
         </div>
 
