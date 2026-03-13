@@ -3,8 +3,8 @@ const path = require("path");
 const { randomUUID } = require("crypto");
 const fs = require("fs/promises");
 
-const HOST = "127.0.0.1";
-const PORT = 3000;
+const HOST = "0.0.0.0";
+const PORT = process.env.PORT || 3000;
 const MAX_BODY_SIZE = 1024 * 1024;
 const MAX_VEHICLES = 20;
 
@@ -732,7 +732,7 @@ async function start() {
     });
   });
 
-  server.listen(PORT, HOST, () => {
+  server.listen(PORT, () => {
     console.log(
       `งานแข่งรถไฮสปีด บิดหมดปลอก ณ สนามแข่งรถบ้านฉางเรสซิ่ง จ.ระยอง app started at http://${HOST}:${PORT}`
     );
