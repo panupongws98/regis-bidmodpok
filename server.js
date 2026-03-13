@@ -12,6 +12,7 @@ const PUBLIC_DIR = path.join(__dirname, "public");
 const DATA_DIR = path.join(__dirname, "data");
 const REGISTRATIONS_FILE = path.join(DATA_DIR, "registrations.json");
 const SETTINGS_FILE = path.join(DATA_DIR, "settings.json");
+const TENT_BOOKINGS_FILE = path.join(DATA_DIR, "tent-bookings.json");
 
 const DEFAULT_CLASSES = [
   "รุ่น 56 ชัก 3 (ไฮสปีด)",
@@ -24,6 +25,31 @@ const DEFAULT_CLASSES = [
   "รุ่น 66 ชัก 5 มิล ตรอ (ไม่บังคับอะไหล่)",
   "รุ่น 67 ชักเดิม ตรอ (ไม่บังคับอะไหล่)",
 ];
+const TENT_ZONE_DEFINITIONS = [
+  { zone: "A", count: 6 },
+  { zone: "B", count: 5 },
+  { zone: "C", count: 27 },
+  { zone: "D", count: 26 },
+];
+const TENT_SLOTS = TENT_ZONE_DEFINITIONS.flatMap(({ zone, count }) => {
+  return Array.from({ length: count }, (_, index) => {
+    const label = `${index + 1}${zone}`;
+    return {
+      id: label,
+      label,
+      zone,
+      order: index + 1,
+    };
+  });
+});
+const TENT_SLOT_MAP = new Map(
+  TENT_SLOTS.map((slot) => [slot.id.toLowerCase(), slot]),
+);
+const UNAVAILABLE_TENT_SLOT_IDS = new Set(
+  TENT_SLOTS.filter((slot) => slot.zone === "B")
+    .map((slot) => slot.id.toLowerCase())
+    .concat(["1d", "2d"]),
+);
 
 const CONTENT_TYPES = {
   ".css": "text/css; charset=utf-8",
@@ -179,6 +205,12 @@ async function ensureDataFiles() {
       "utf8",
     );
   }
+
+  try {
+    await fs.access(TENT_BOOKINGS_FILE);
+  } catch {
+    await fs.writeFile(TENT_BOOKINGS_FILE, "[]\n", "utf8");
+  }
 }
 
 async function readJson(filePath, fallback) {
@@ -223,6 +255,133 @@ async function loadClasses() {
 
 async function saveClasses(classes) {
   await writeJson(SETTINGS_FILE, { classes });
+}
+
+function findTentSlot(slotId) {
+  return TENT_SLOT_MAP.get(normalizeText(slotId)) || null;
+}
+
+function isTentSlotBookable(slotOrSlotId) {
+  const slot =
+    typeof slotOrSlotId === "string" ? findTentSlot(slotOrSlotId) : slotOrSlotId;
+  return Boolean(slot) && !UNAVAILABLE_TENT_SLOT_IDS.has(slot.id.toLowerCase());
+}
+
+function sortTentBookings(bookings) {
+  return [...bookings].sort((left, right) => {
+    const leftSlot = findTentSlot(left.slotId);
+    const rightSlot = findTentSlot(right.slotId);
+    const leftRank = leftSlot ? `${leftSlot.zone}-${String(leftSlot.order).padStart(2, "0")}` : "";
+    const rightRank = rightSlot ? `${rightSlot.zone}-${String(rightSlot.order).padStart(2, "0")}` : "";
+    return leftRank.localeCompare(rightRank);
+  });
+}
+
+function normalizeTentBookingRecord(booking) {
+  const candidate = booking && typeof booking === "object" ? booking : {};
+  const slot = findTentSlot(candidate.slotId);
+  const registrationId = sanitizeText(candidate.registrationId);
+
+  if (!slot || !registrationId || !isTentSlotBookable(slot)) {
+    return null;
+  }
+
+  return {
+    slotId: slot.id,
+    registrationId,
+    updatedAt: sanitizeText(candidate.updatedAt),
+  };
+}
+
+async function loadTentBookings() {
+  const bookings = await readJson(TENT_BOOKINGS_FILE, []);
+  if (!Array.isArray(bookings)) {
+    return [];
+  }
+
+  const bookingMap = new Map();
+  for (const booking of bookings) {
+    const normalized = normalizeTentBookingRecord(booking);
+    if (!normalized) {
+      continue;
+    }
+
+    bookingMap.set(normalized.slotId, normalized);
+  }
+
+  return sortTentBookings([...bookingMap.values()]);
+}
+
+async function saveTentBookings(bookings) {
+  const bookingMap = new Map();
+  if (Array.isArray(bookings)) {
+    for (const booking of bookings) {
+      const normalized = normalizeTentBookingRecord(booking);
+      if (!normalized) {
+        continue;
+      }
+
+      bookingMap.set(normalized.slotId, normalized);
+    }
+  }
+
+  await writeJson(TENT_BOOKINGS_FILE, sortTentBookings([...bookingMap.values()]));
+}
+
+function filterTentBookingsByRegistrations(bookings, registrations) {
+  const validRegistrationIds = new Set(
+    registrations.map((registration) => registration.id),
+  );
+
+  return bookings.filter((booking) => {
+    return (
+      validRegistrationIds.has(booking.registrationId) &&
+      isTentSlotBookable(booking.slotId)
+    );
+  });
+}
+
+function buildTentSlotPayload(bookings, registrations) {
+  const registrationsById = new Map(
+    registrations.map((registration) => [registration.id, registration]),
+  );
+  const bookingsBySlotId = new Map(
+    bookings.map((booking) => [booking.slotId, booking]),
+  );
+
+  const slots = TENT_SLOTS.map((slot) => {
+    const booking = bookingsBySlotId.get(slot.id);
+    const registration = booking ? registrationsById.get(booking.registrationId) : null;
+
+    return {
+      id: slot.id,
+      label: slot.label,
+      zone: slot.zone,
+      order: slot.order,
+      isBookable: isTentSlotBookable(slot),
+      registrationId: registration?.id || "",
+      applicantName: registration?.applicantName || "",
+      contactPhone: registration?.contactPhone || "",
+      updatedAt: booking?.updatedAt || "",
+    };
+  });
+  const bookedSlots = slots.filter((slot) => slot.isBookable && slot.registrationId).length;
+  const unavailableSlots = slots.filter((slot) => !slot.isBookable).length;
+  const bookableSlots = slots.length - unavailableSlots;
+  const lastUpdatedAt = slots.reduce((latest, slot) => {
+    return slot.updatedAt && slot.updatedAt > latest ? slot.updatedAt : latest;
+  }, "");
+
+  return {
+    zones: TENT_ZONE_DEFINITIONS,
+    slots,
+    totalSlots: slots.length,
+    bookableSlots,
+    unavailableSlots,
+    bookedSlots,
+    availableSlots: bookableSlots - bookedSlots,
+    lastUpdatedAt,
+  };
 }
 
 function sendJson(response, statusCode, payload) {
@@ -579,6 +738,82 @@ async function handleApi(request, response, url) {
     return sendJson(response, 200, { registrations: sorted });
   }
 
+  if (request.method === "GET" && url.pathname === "/api/tent-bookings") {
+    const [registrations, tentBookings] = await Promise.all([
+      loadRegistrations(),
+      loadTentBookings(),
+    ]);
+    const validTentBookings = filterTentBookingsByRegistrations(
+      tentBookings,
+      registrations,
+    );
+
+    if (validTentBookings.length !== tentBookings.length) {
+      await saveTentBookings(validTentBookings);
+    }
+
+    return sendJson(
+      response,
+      200,
+      buildTentSlotPayload(validTentBookings, registrations),
+    );
+  }
+
+  const tentRouteMatch = url.pathname.match(/^\/api\/tent-bookings\/([^/]+)$/);
+  if (request.method === "PUT" && tentRouteMatch) {
+    const body = await parseJsonBodyOrSendError(request, response);
+    if (body === null) {
+      return;
+    }
+
+    const slot = findTentSlot(decodeURIComponent(tentRouteMatch[1]));
+    if (!slot) {
+      return sendError(response, 404, "ไม่พบเต็นท์ที่ต้องการบันทึก");
+    }
+
+    if (!isTentSlotBookable(slot)) {
+      return sendError(response, 400, "เต็นท์ช่องนี้ไม่เปิดให้จอง");
+    }
+
+    const registrationId = sanitizeText(body.registrationId);
+    const [registrations, tentBookings] = await Promise.all([
+      loadRegistrations(),
+      loadTentBookings(),
+    ]);
+    const validTentBookings = filterTentBookingsByRegistrations(
+      tentBookings,
+      registrations,
+    );
+
+    if (validTentBookings.length !== tentBookings.length) {
+      await saveTentBookings(validTentBookings);
+    }
+
+    if (registrationId) {
+      const registration = registrations.find((item) => item.id === registrationId);
+      if (!registration) {
+        return sendError(response, 400, "ไม่พบรายชื่อผู้สมัครที่เลือกสำหรับการจองเต็นท์");
+      }
+    }
+
+    const nextTentBookings = validTentBookings.filter((booking) => booking.slotId !== slot.id);
+    if (registrationId) {
+      nextTentBookings.push({
+        slotId: slot.id,
+        registrationId,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+
+    await saveTentBookings(nextTentBookings);
+
+    const payload = buildTentSlotPayload(nextTentBookings, registrations);
+    return sendJson(response, 200, {
+      ...payload,
+      slot: payload.slots.find((item) => item.id === slot.id) || null,
+    });
+  }
+
   if (request.method === "POST" && url.pathname === "/api/registrations") {
     const body = await parseJsonBodyOrSendError(request, response);
     if (body === null) {
@@ -623,7 +858,16 @@ async function handleApi(request, response, url) {
 
   if (request.method === "DELETE") {
     registrations.splice(index, 1);
-    await saveRegistrations(registrations);
+    const tentBookings = await loadTentBookings();
+    const nextTentBookings = tentBookings.filter((booking) => {
+      return booking.registrationId !== registrationId;
+    });
+    await Promise.all([
+      saveRegistrations(registrations),
+      nextTentBookings.length !== tentBookings.length
+        ? saveTentBookings(nextTentBookings)
+        : Promise.resolve(),
+    ]);
     return sendJson(response, 200, { success: true });
   }
 

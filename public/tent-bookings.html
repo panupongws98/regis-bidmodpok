@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>จองเต็นท์ล่วงหน้า | งานแข่งรถไฮสปีด บิดหมดปลอก ณ สนามแข่งรถบ้านฉางเรสซิ่ง จ.ระยอง</title>
+    <link rel="stylesheet" href="/styles.css?v=20260312-bidmodplok-copyfix" />
+    <link rel="stylesheet" href="/tent-bookings.css?v=20260313-print-white" />
+  </head>
+  <body data-page="tent-bookings">
+    <div class="page-shell">
+      <header class="hero">
+        <div class="hero-copy-block">
+          <p class="eyebrow">สนามแข่งรถสกู๊ตเตอร์แดร็ก</p>
+          <div class="hero-title-lockup">
+            <div class="hero-mark hero-mark--logo">
+              <img
+                class="hero-logo"
+                src="/logo-bidmodplok.svg"
+                alt="โลโก้งานแข่งรถไฮสปีด บิดหมดปลอก ณ สนามแข่งรถบ้านฉางเรสซิ่ง จ.ระยอง"
+              />
+            </div>
+            <div class="hero-headline">
+              <h1>งานแข่งรถไฮสปีด บิดหมดปลอก</h1>
+              <p class="hero-event">ณ สนามแข่งรถบ้านฉางเรสซิ่ง จ.ระยอง</p>
+            </div>
+          </div>
+          <p class="hero-tagline">ผังจองเต็นท์ล่วงหน้าออนไลน์สำหรับโซน A B C D</p>
+          <p class="hero-copy">
+            ใช้หน้านี้กำหนดว่าเต็นท์แต่ละหลังในผังสถานที่จัดงานถูกจองโดยทีมใด
+            โดยระบบจะดึงตัวเลือกจากรายชื่อผู้สมัครที่บันทึกไว้แล้วและเปิดให้แก้ไขสถานะได้ตลอดเวลา
+          </p>
+          <div class="hero-detail-grid">
+            <div class="hero-detail-card">
+              <span>วิธีใช้งาน</span>
+              <strong>คลิกเต็นท์บนผัง แล้วเลือกทีมจาก dropdown ในแผงจัดการด้านขวา</strong>
+            </div>
+            <div class="hero-detail-card">
+              <span>ผังพื้นที่</span>
+              <strong>จัดวางโซน A B C D ตามตำแหน่งอ้างอิงจากผังสถานที่จัดงาน</strong>
+            </div>
+          </div>
+        </div>
+        <div class="hero-stats hero-stats--tent">
+          <div class="stat-card">
+            <span>เต็นท์ทั้งหมด</span>
+            <strong id="tentTotalCount">0</strong>
+          </div>
+          <div class="stat-card">
+            <span>จองแล้ว</span>
+            <strong id="tentBookedCount">0</strong>
+          </div>
+          <div class="stat-card">
+            <span>ยังว่าง</span>
+            <strong id="tentAvailableCount">0</strong>
+          </div>
+          <div class="hero-burst">
+            <span>รายชื่อพร้อมเลือก</span>
+            <strong id="tentRegistrationCount">0 ทีม</strong>
+            <p id="tentLastUpdated">กำลังโหลดข้อมูลการจองเต็นท์ล่าสุด...</p>
+          </div>
+        </div>
+      </header>
+
+      <nav class="system-nav" aria-label="เมนูงานแข่ง">
+        <a class="system-link" href="/index.html">
+          <strong>โต๊ะรับสมัคร</strong>
+          <span>กรอกทีม รุ่นแข่ง และหมายเลขรถเพื่อสร้างรายการใหม่หรือแก้ไขรายการเดิม</span>
+        </a>
+        <a class="system-link" href="/classes.html">
+          <strong>จัดการรุ่นแข่งขัน</strong>
+          <span>เพิ่ม แก้ไข และจัดชุดรุ่นที่เปิดรับสมัครให้ตรงกับงานแข่ง</span>
+        </a>
+        <a class="system-link" href="/applicants.html">
+          <strong>รายชื่อผู้สมัคร</strong>
+          <span>ค้นหา ตรวจสอบข้อมูล แก้ไขรายการ และพิมพ์ใบสมัครรายคน</span>
+        </a>
+        <a class="system-link" href="/tent-bookings.html" aria-current="page">
+          <strong>จองเต็นท์ล่วงหน้า</strong>
+          <span>เปิดผังโซน A B C D แล้วเลือกว่าทีมไหนจองเต็นท์ใดจากรายชื่อผู้สมัคร</span>
+        </a>
+        <a class="system-link" href="/summary.html">
+          <strong>สรุปและพิมพ์เอกสาร</strong>
+          <span>พิมพ์ตารางจับเวลา สรุปรุ่นแข่งขัน และหน้าสายประกบของแต่ละรุ่น</span>
+        </a>
+      </nav>
+
+      <main class="page-main">
+        <section class="panel page-panel tent-page-panel">
+          <div class="panel-header">
+            <div>
+              <p class="panel-kicker">Tent Reservation Map</p>
+              <h2>ผังจองเต็นท์ล่วงหน้า</h2>
+              <p class="panel-description">
+                เลือกทีมจากรายชื่อผู้สมัครเพื่อระบุว่าเต็นท์แต่ละช่องในโซน A B C D
+                ถูกจองโดยทีมใด โดยคลิกที่เต็นท์บนผังเพื่อเปิดแผงเลือกทีม
+                และหากต้องการคืนเต็นท์ให้ว่างสามารถเลือกตัวเลือก “ว่าง” ได้ทันที
+                โดยโซน B ทั้งหมด รวมถึง D1 และ D2 จะถูกล็อกไม่ให้จอง
+              </p>
+            </div>
+            <div class="page-tools">
+              <button class="button button-secondary" type="button" id="refreshTentMapButton">
+                รีเฟรชข้อมูล
+              </button>
+              <button class="button button-secondary" type="button" id="printTentMapButton">
+                พิมพ์ผัง A4
+              </button>
+              <a class="button button-secondary" href="/applicants.html">
+                เปิดรายชื่อผู้สมัคร
+              </a>
+            </div>
+          </div>
+
+          <div class="status-banner" id="tentStatusBanner" role="status" aria-live="polite">
+            กำลังโหลดข้อมูลผังจองเต็นท์...
+          </div>
+
+          <div class="tent-toolbar">
+            <div class="tent-toolbar-copy">
+              <p class="section-kicker">Venue Guide</p>
+              <h3>อัปเดตการจองตามผังงานได้จากหน้าเดียว</h3>
+              <p>
+                เต็นท์ทุกช่องจะดึงรายชื่อทีมจากข้อมูลผู้สมัครจริงในระบบเดียวกัน
+                จึงช่วยให้ฝ่ายจัดงานเช็กเต็นท์หน้าพื้นที่ได้ตรงกับรายชื่อที่ลงแข่ง
+              </p>
+            </div>
+            <div class="tent-legend" aria-label="คำอธิบายสถานะการจอง">
+              <div class="tent-legend-card">
+                <span class="tent-legend-swatch tent-legend-swatch--booked"></span>
+                <strong>จองแล้ว</strong>
+                <p>มีทีมเลือกจองเต็นท์ช่องนี้แล้ว</p>
+              </div>
+              <div class="tent-legend-card">
+                <span class="tent-legend-swatch tent-legend-swatch--available"></span>
+                <strong>ยังว่าง</strong>
+                <p>พร้อมเลือกทีมผู้สมัครเข้ามาจอง</p>
+              </div>
+              <div class="tent-legend-card">
+                <span class="tent-legend-swatch tent-legend-swatch--landmark"></span>
+                <strong>จุดอ้างอิง</strong>
+                <p>แสดงลานจอดรถ จุดบริการ และ Track A/B เพื่ออ่านผังง่ายขึ้น</p>
+              </div>
+            </div>
+          </div>
+
+          <div id="tentMap" class="tent-map-shell" aria-live="polite"></div>
+        </section>
+      </main>
+    </div>
+
+    <script src="/tent-bookings.js?v=20260313-print-a4"></script>
+  </body>
+</html>

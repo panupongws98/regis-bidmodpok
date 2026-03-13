@@ -157,7 +157,14 @@ async function run() {
     child = server.child;
     const { baseUrl } = server;
 
-    for (const pathname of ["/", "/index.html", "/classes.html", "/applicants.html", "/summary.html"]) {
+    for (const pathname of [
+      "/",
+      "/index.html",
+      "/classes.html",
+      "/applicants.html",
+      "/tent-bookings.html",
+      "/summary.html",
+    ]) {
       const response = await fetch(`${baseUrl}${pathname}`);
       const html = await response.text();
 
@@ -173,6 +180,30 @@ async function run() {
     const registrationsResult = await requestJson(baseUrl, "/api/registrations");
     assert.equal(registrationsResult.response.status, 200);
     assert.ok(Array.isArray(registrationsResult.body.registrations));
+
+    const tentBookingsResult = await requestJson(baseUrl, "/api/tent-bookings");
+    assert.equal(tentBookingsResult.response.status, 200);
+    assert.ok(Array.isArray(tentBookingsResult.body.slots));
+    assert.equal(tentBookingsResult.body.totalSlots, 64);
+    assert.equal(tentBookingsResult.body.unavailableSlots, 7);
+    assert.equal(tentBookingsResult.body.bookableSlots, 57);
+    const initialBookedSlots = tentBookingsResult.body.bookedSlots;
+    const emptyTentSlotId = tentBookingsResult.body.slots.find((slot) => {
+      return slot.isBookable && !slot.registrationId;
+    })?.id;
+    assert.ok(emptyTentSlotId, "expected at least one empty tent slot in the fixture");
+    assert.equal(
+      tentBookingsResult.body.bookedSlots + tentBookingsResult.body.availableSlots,
+      57,
+    );
+    assert.equal(
+      tentBookingsResult.body.slots.find((slot) => slot.id === "1B")?.isBookable,
+      false,
+    );
+    assert.equal(
+      tentBookingsResult.body.slots.find((slot) => slot.id === "1D")?.isBookable,
+      false,
+    );
 
     const createdClassName = `Smoke Class ${Date.now()}`;
     const renamedClassName = `${createdClassName} Updated`;
@@ -238,6 +269,30 @@ async function run() {
     assert.equal(result.response.status, 200);
     assert.equal(result.body.registration.entries[0].bikeNumbers[0], updatedBikeNumber);
 
+    result = await requestJson(baseUrl, `/api/tent-bookings/${encodeURIComponent(emptyTentSlotId)}`, {
+      method: "PUT",
+      body: JSON.stringify({ registrationId }),
+    });
+    assert.equal(result.response.status, 200);
+    assert.equal(result.body.slot.id, emptyTentSlotId);
+    assert.equal(result.body.slot.registrationId, registrationId);
+    assert.equal(result.body.slot.applicantName, createPayload.applicantName);
+    assert.equal(result.body.bookedSlots, initialBookedSlots + 1);
+
+    result = await requestJson(baseUrl, "/api/tent-bookings/1B", {
+      method: "PUT",
+      body: JSON.stringify({ registrationId }),
+    });
+    assert.equal(result.response.status, 400);
+    assert.match(result.body.error, /ไม่เปิดให้จอง/);
+
+    result = await requestJson(baseUrl, `/api/tent-bookings/${encodeURIComponent(emptyTentSlotId)}`, {
+      method: "PUT",
+      body: JSON.stringify({ registrationId: "missing-registration-id" }),
+    });
+    assert.equal(result.response.status, 400);
+    assert.match(result.body.error, /ไม่พบรายชื่อผู้สมัคร/);
+
     result = await requestJson(baseUrl, "/api/registrations", {
       method: "POST",
       body: JSON.stringify({
@@ -269,6 +324,11 @@ async function run() {
     });
     assert.equal(result.response.status, 200);
     assert.equal(result.body.success, true);
+
+    result = await requestJson(baseUrl, "/api/tent-bookings");
+    assert.equal(result.response.status, 200);
+    assert.equal(result.body.bookedSlots, initialBookedSlots);
+    assert.equal(result.body.slots.find((slot) => slot.id === emptyTentSlotId)?.registrationId, "");
   } finally {
     await stopServer(child);
     await fs.rm(fixtureRoot, { recursive: true, force: true });
