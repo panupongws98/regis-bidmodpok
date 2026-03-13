@@ -833,4 +833,8 @@
   .venue-svg-slot-booked-fill {
     fill: #e6c2c2 !important;
   }
+
+  .venue-svg-slot-highlight {
+    display: none !important;
+  }
 }
