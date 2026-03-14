@@ -33,21 +33,37 @@ const SUMMARY_TEMPLATES = [
     id: "name-only",
     label: "รายชื่อผู้สมัคร",
     description: "แสดงชื่อผู้สมัครอย่างเดียวตามแบบลิสต์รายชื่อ",
+    livePrintLabel: "พิมพ์รายชื่อผู้สมัคร",
+    blankPrintLabel: "พิมพ์รายชื่อเปล่า",
+    liveHint: "ใช้ข้อมูลจริงจากผู้สมัครในรุ่นนี้สำหรับเช็กชื่อหรือประกาศรายชื่อ",
+    blankHint: "เหมาะสำหรับปริ้นไว้เติมชื่อเพิ่มหรือขีดเช็กมือหน้างาน",
   },
   {
     id: "with-vehicle-numbers",
     label: "รายชื่อพร้อมรถและเลขรถ",
     description: "แสดงชื่อผู้สมัคร จำนวนรถ และหมายเลขรถในตารางเดียว",
+    livePrintLabel: "พิมพ์รายชื่อพร้อมรถ",
+    blankPrintLabel: "พิมพ์ฟอร์มชื่อและเลขรถเปล่า",
+    liveHint: "ใช้ข้อมูลจริงสำหรับเช็กทีม จำนวนรถ และหมายเลขรถได้จากกระดาษใบเดียว",
+    blankHint: "เหมาะสำหรับปริ้นไว้กรอกชื่อทีม จำนวนรถ และเลขรถเพิ่มด้วยมือ",
   },
   {
     id: "timing-sheet",
     label: "ตารางจับเวลา",
     description: "สำหรับจดเวลารอบ 1 รอบ 2 เวลาที่ดีที่สุด และอันดับ",
+    livePrintLabel: "พิมพ์ตารางจับเวลา",
+    blankPrintLabel: "พิมพ์ตารางจับเวลาเปล่า",
+    liveHint: "ใช้ข้อมูลทีมและหมายเลขรถจริงเพื่อเริ่มจับเวลาได้ทันที",
+    blankHint: "เหมาะสำหรับเตรียมกระดาษสำรองไว้เขียนเวลาเองหน้างาน",
   },
   {
     id: "bracket-12",
     label: "สายประกบรุ่นแข่ง",
     description: "กำหนดช่องรอบแรกเอง แล้วเลือกรอบถัดไปจากผู้ชนะของคู่ก่อนหน้า",
+    livePrintLabel: "พิมพ์สายประกบรุ่น",
+    blankPrintLabel: "พิมพ์สายประกบเปล่า",
+    liveHint: "ใช้พิมพ์สายประกบที่จัดไว้ในตัวอย่างตอนนี้พร้อมรายชื่อผู้ชนะในแต่ละช่อง",
+    blankHint: "เหมาะสำหรับปริ้นผังว่างไว้เขียนจับคู่และจดผลการแข่งขันด้วยมือ",
   },
 ];
 const DEFAULT_SUMMARY_TEMPLATE_ID = "with-vehicle-numbers";
@@ -61,6 +77,11 @@ const SUMMARY_ROWS_PER_PAGE = {
   "with-vehicle-numbers": 24,
   "timing-sheet": 22,
 };
+const REQUIRED_TEAM_CONTACT_FIELDS = [
+  { name: "applicantName", label: "ชื่อผู้สมัคร" },
+  { name: "contactPhone", label: "เบอร์โทรติดต่อ" },
+  { name: "address", label: "ที่อยู่" },
+];
 const currentPage = document.body.dataset.page || "registration";
 const DEFAULT_STATUS_MESSAGES = {
   registration: "พร้อมเปิดรับผู้สมัคร",
@@ -177,6 +198,7 @@ const state = {
   editingClassName: null,
   printColumns: loadPrintColumnsPreference(),
   selectedSummaryClass: "",
+  selectedBlankBracketSize: "16",
   selectedSummaryTemplate: DEFAULT_SUMMARY_TEMPLATE_ID,
   bracketSelections: loadBracketSelectionsPreference(),
 };
@@ -203,6 +225,7 @@ const elements = {
   printColumnSummary: document.querySelector("#printColumnSummary"),
   printModal: document.querySelector("#printModal"),
   printModalStatus: document.querySelector("#printModalStatus"),
+  printBlankSummaryButton: document.querySelector("#printBlankSummaryButton"),
   printSummaryButton: document.querySelector("#printSummaryButton"),
   registrationForm: document.querySelector("#registrationForm"),
   registrationList: document.querySelector("#registrationList"),
@@ -212,6 +235,12 @@ const elements = {
   searchResultsMeta: document.querySelector("#searchResultsMeta"),
   statusBanner: document.querySelector("#statusBanner"),
   submitButton: document.querySelector("#submitButton"),
+  summaryActionCopy: document.querySelector("#summaryActionCopy"),
+  summaryActionHint: document.querySelector("#summaryActionHint"),
+  summaryActionSummary: document.querySelector("#summaryActionSummary"),
+  summaryActionTitle: document.querySelector("#summaryActionTitle"),
+  summaryBlankBracketSizeField: document.querySelector("#summaryBlankBracketSizeField"),
+  summaryBlankBracketSizeSelect: document.querySelector("#summaryBlankBracketSizeSelect"),
   summaryClassSelect: document.querySelector("#summaryClassSelect"),
   summaryPreview: document.querySelector("#summaryPreview"),
   summaryPreviewMeta: document.querySelector("#summaryPreviewMeta"),
@@ -535,6 +564,60 @@ function focusApplicantNameInput(selectText = false) {
   applicantNameInput.focus({ preventScroll: true });
   if (selectText && typeof applicantNameInput.select === "function") {
     applicantNameInput.select();
+  }
+}
+
+function getRegistrationFormField(fieldName) {
+  if (!hasElement("registrationForm")) {
+    return null;
+  }
+
+  return elements.registrationForm.elements.namedItem(fieldName);
+}
+
+function validateTeamContactFields(options = {}) {
+  const { showValidationMessage = false } = options;
+  if (!hasElement("registrationForm")) {
+    return true;
+  }
+
+  let hasInvalidField = false;
+
+  for (const field of REQUIRED_TEAM_CONTACT_FIELDS) {
+    const input = getRegistrationFormField(field.name);
+    if (
+      !(
+        input instanceof HTMLInputElement ||
+        input instanceof HTMLTextAreaElement ||
+        input instanceof HTMLSelectElement
+      )
+    ) {
+      continue;
+    }
+
+    const isBlank = !input.value.trim();
+    input.setCustomValidity(isBlank ? `กรุณากรอก${field.label}` : "");
+    hasInvalidField = hasInvalidField || isBlank;
+  }
+
+  if (hasInvalidField && showValidationMessage) {
+    elements.registrationForm.reportValidity();
+    return false;
+  }
+
+  return !hasInvalidField;
+}
+
+function resetTeamContactFieldValidation() {
+  for (const field of REQUIRED_TEAM_CONTACT_FIELDS) {
+    const input = getRegistrationFormField(field.name);
+    if (
+      input instanceof HTMLInputElement ||
+      input instanceof HTMLTextAreaElement ||
+      input instanceof HTMLSelectElement
+    ) {
+      input.setCustomValidity("");
+    }
   }
 }
 
@@ -1073,19 +1156,24 @@ function renderSummaryTemplates() {
     return;
   }
 
-  elements.summaryTemplateList.innerHTML = SUMMARY_TEMPLATES.map((template) => {
+  elements.summaryTemplateList.innerHTML = SUMMARY_TEMPLATES.map((template, index) => {
     const isActive = template.id === state.selectedSummaryTemplate;
     return `
       <button
         class="summary-template-button ${isActive ? "is-active" : ""}"
         type="button"
         data-template-id="${template.id}"
+        aria-pressed="${isActive}"
       >
+        <small class="summary-template-eyebrow">แบบพิมพ์ ${index + 1}</small>
         <strong>${escapeHtml(template.label)}</strong>
         <span>${escapeHtml(template.description)}</span>
+        <em class="summary-template-state">${isActive ? "กำลังเลือกอยู่" : "กดเพื่อดูตัวอย่าง"}</em>
       </button>
     `;
   }).join("");
+
+  renderBlankBracketSizeControl();
 }
 
 function getRegistrationsForClass(className) {
@@ -1131,7 +1219,163 @@ function getSummaryTemplate(templateId) {
   return SUMMARY_TEMPLATES.find((template) => template.id === templateId);
 }
 
-function buildSummaryTable(columns, rows, minimumRows, className, extraClass = "", rowsPerPage = minimumRows) {
+function getSelectedBlankBracketSlotCount() {
+  return state.selectedBlankBracketSize === "8" ? 8 : 16;
+}
+
+function getSummaryTemplateActionConfig(template) {
+  if (!template) {
+    return {
+      livePrintLabel: "พิมพ์หน้าสรุป",
+      blankPrintLabel: "พิมพ์แบบเปล่า",
+      blankModeLabel: "-",
+      liveHint: "เลือกแบบพิมพ์ก่อน ระบบจะแสดงความหมายของปุ่มพิมพ์ให้อัตโนมัติ",
+      blankHint: "ปุ่มพิมพ์แบบเปล่าเหมาะสำหรับเตรียมกระดาษไว้เขียนมือหน้างาน",
+    };
+  }
+
+  if (template.id === "bracket-12") {
+    const slotCount = getSelectedBlankBracketSlotCount();
+    return {
+      livePrintLabel: template.livePrintLabel,
+      blankPrintLabel: `${template.blankPrintLabel} ${slotCount} ทีม`,
+      blankModeLabel: `ผังสายประกบ ${slotCount} ทีม`,
+      liveHint: template.liveHint,
+      blankHint: `${template.blankHint} ตอนนี้ตั้งไว้เป็นแบบ ${slotCount} ทีม`,
+    };
+  }
+
+  return {
+    livePrintLabel: template.livePrintLabel,
+    blankPrintLabel: template.blankPrintLabel,
+    blankModeLabel: "ฟอร์มเปล่าสำหรับเขียนมือ",
+    liveHint: template.liveHint,
+    blankHint: template.blankHint,
+  };
+}
+
+function renderSummaryActionPanel() {
+  if (
+    !hasElement("summaryActionTitle") ||
+    !hasElement("summaryActionCopy") ||
+    !hasElement("summaryActionSummary") ||
+    !hasElement("summaryActionHint")
+  ) {
+    return;
+  }
+
+  const className = state.selectedSummaryClass;
+  const template = getSummaryTemplate(state.selectedSummaryTemplate);
+  const actionConfig = getSummaryTemplateActionConfig(template);
+  const hasSelection = Boolean(className && template);
+  const selectionRows = [
+    {
+      label: "รุ่นที่เลือก",
+      value: className || "ยังไม่ได้เลือกรุ่น",
+    },
+    {
+      label: "แบบพิมพ์",
+      value: template?.label || "ยังไม่ได้เลือกแบบพิมพ์",
+    },
+    {
+      label: "โหมดพิมพ์แบบเปล่า",
+      value: actionConfig.blankModeLabel,
+    },
+  ];
+
+  elements.summaryActionTitle.textContent = hasSelection
+    ? `พร้อมพิมพ์ ${template.label}`
+    : "เลือกรุ่นและแบบพิมพ์ก่อน";
+  elements.summaryActionCopy.textContent = hasSelection
+    ? actionConfig.liveHint
+    : "เริ่มจาก Step 1 และ Step 2 ด้านซ้ายก่อน แล้วระบบจะสรุปให้ทันทีว่าปุ่มไหนพิมพ์อะไร";
+  elements.summaryActionSummary.innerHTML = selectionRows
+    .map((row) => {
+      return `
+        <div class="summary-action-row">
+          <span>${escapeHtml(row.label)}</span>
+          <strong>${escapeHtml(row.value)}</strong>
+        </div>
+      `;
+    })
+    .join("");
+  elements.summaryActionHint.textContent = hasSelection
+    ? `พิมพ์หน้าสรุป: ${actionConfig.liveHint} | พิมพ์แบบเปล่า: ${actionConfig.blankHint}`
+    : "ปุ่มพิมพ์หน้าสรุปจะใช้ข้อมูลจริงของรุ่นที่เลือก ส่วนพิมพ์แบบเปล่าจะสร้างกระดาษสำรองไว้เขียนมือหน้างาน";
+
+  if (hasElement("printSummaryButton")) {
+    elements.printSummaryButton.textContent = actionConfig.livePrintLabel;
+    elements.printSummaryButton.disabled = !hasSelection;
+  }
+
+  if (hasElement("printBlankSummaryButton")) {
+    elements.printBlankSummaryButton.textContent = actionConfig.blankPrintLabel;
+    elements.printBlankSummaryButton.disabled = !hasSelection;
+  }
+}
+
+function renderSummaryPreviewMetaChips() {
+  if (!hasElement("summaryPreviewMeta")) {
+    return;
+  }
+
+  const className = state.selectedSummaryClass;
+  const template = getSummaryTemplate(state.selectedSummaryTemplate);
+
+  if (!className || !template) {
+    elements.summaryPreviewMeta.innerHTML = `
+      <div class="summary-meta-chip is-empty">
+        <span>พร้อมเริ่ม</span>
+        <strong>เลือกรุ่นแข่งและแบบพิมพ์เพื่อดูตัวอย่าง</strong>
+      </div>
+    `;
+    return;
+  }
+
+  const chips = [
+    { label: "รุ่น", value: className },
+    { label: "แบบพิมพ์", value: template.label },
+    {
+      label: "แบบเปล่า",
+      value: template.id === "bracket-12"
+        ? `${getSelectedBlankBracketSlotCount()} ทีม`
+        : "พร้อมพิมพ์",
+    },
+    { label: "ข้อมูลในรุ่น", value: getSummaryMetaText(className), wide: true },
+  ];
+
+  elements.summaryPreviewMeta.innerHTML = chips
+    .map((chip) => {
+      return `
+        <div class="summary-meta-chip${chip.wide ? " is-wide" : ""}">
+          <span>${escapeHtml(chip.label)}</span>
+          <strong>${escapeHtml(chip.value)}</strong>
+        </div>
+      `;
+    })
+    .join("");
+}
+
+function renderBlankBracketSizeControl() {
+  if (!hasElement("summaryBlankBracketSizeField") || !hasElement("summaryBlankBracketSizeSelect")) {
+    return;
+  }
+
+  const isBracketTemplate = state.selectedSummaryTemplate === "bracket-12";
+  elements.summaryBlankBracketSizeField.hidden = !isBracketTemplate;
+  elements.summaryBlankBracketSizeSelect.value = state.selectedBlankBracketSize;
+}
+
+function buildSummaryTable(
+  columns,
+  rows,
+  minimumRows,
+  className,
+  extraClass = "",
+  rowsPerPage = minimumRows,
+  options = {},
+) {
+  const inlineNoteText = options.inlineNoteText || "";
   const filledRows = [...rows];
   while (filledRows.length < minimumRows) {
     filledRows.push(columns.map(() => ""));
@@ -1160,11 +1404,16 @@ function buildSummaryTable(columns, rows, minimumRows, className, extraClass = "
         })
         .join("");
       const totalPages = pages.length;
-      const titleRow = totalPages > 1
+      const inlineNote = inlineNoteText
+        ? `${inlineNoteText}${totalPages > 1 ? ` | หน้า ${pageIndex + 1} / ${totalPages}` : ""}`
+        : totalPages > 1
+          ? `หน้า ${pageIndex + 1} / ${totalPages}`
+          : "";
+      const titleRow = inlineNote
         ? `
           <div class="summary-sheet-title-row">
             <div class="summary-sheet-title">รุ่น ${escapeHtml(className || "-")}</div>
-            <div class="summary-sheet-note summary-sheet-note--inline">หน้า ${pageIndex + 1} / ${totalPages}</div>
+            <div class="summary-sheet-note summary-sheet-note--inline">${escapeHtml(inlineNote)}</div>
           </div>
         `
         : `<div class="summary-sheet-title">รุ่น ${escapeHtml(className || "-")}</div>`;
@@ -1186,8 +1435,9 @@ function buildSummaryTable(columns, rows, minimumRows, className, extraClass = "
     .join("");
 }
 
-function buildNameOnlySummary(className) {
-  const rows = getRegistrationsForClass(className).map((registration) => {
+function buildNameOnlySummary(className, options = {}) {
+  const { blank = false } = options;
+  const rows = blank ? [] : getRegistrationsForClass(className).map((registration) => {
     return [registration.applicantName || ""];
   });
 
@@ -1198,11 +1448,13 @@ function buildNameOnlySummary(className) {
     className,
     "summary-sheet-name-only",
     SUMMARY_ROWS_PER_PAGE["name-only"],
+    blank ? { inlineNoteText: "แบบเปล่าสำหรับเขียนหน้างาน" } : {},
   );
 }
 
-function buildVehicleSummary(className) {
-  const rows = getRegistrationsForClass(className).map((registration) => {
+function buildVehicleSummary(className, options = {}) {
+  const { blank = false } = options;
+  const rows = blank ? [] : getRegistrationsForClass(className).map((registration) => {
     return [
       registration.applicantName || "",
       registration.vehicleCount ? `${registration.vehicleCount} คัน` : "-",
@@ -1221,11 +1473,13 @@ function buildVehicleSummary(className) {
     className,
     "summary-sheet-vehicle-list",
     SUMMARY_ROWS_PER_PAGE["with-vehicle-numbers"],
+    blank ? { inlineNoteText: "แบบเปล่าสำหรับเขียนหน้างาน" } : {},
   );
 }
 
-function buildTimingSummary(className) {
-  const rows = getBikeEntriesForClass(className).map((entry) => {
+function buildTimingSummary(className, options = {}) {
+  const { blank = false } = options;
+  const rows = blank ? [] : getBikeEntriesForClass(className).map((entry) => {
     return [entry.applicantName || "", entry.bikeNumber || "", "", "", "", ""];
   });
 
@@ -1243,6 +1497,7 @@ function buildTimingSummary(className) {
     className,
     "summary-sheet-timing",
     SUMMARY_ROWS_PER_PAGE["timing-sheet"],
+    blank ? { inlineNoteText: "แบบเปล่าสำหรับเขียนหน้างาน" } : {},
   );
 }
 function getBracketEntriesForClass(className) {
@@ -1527,6 +1782,32 @@ function getBracketRecord(className) {
       bracketState.rounds,
       bracketState.thirdPlaceWinner,
     ),
+  };
+}
+
+function getBlankBracketConfig(className, slotCount) {
+  const normalizedSlotCount = slotCount === 8 ? 8 : 16;
+  const rounds = buildBracketRounds(normalizedSlotCount);
+
+  return {
+    className,
+    entries: [],
+    entryMap: new Map(),
+    rounds,
+    pageGroups: buildBracketPageGroups(rounds, normalizedSlotCount),
+  };
+}
+
+function getBlankBracketRecord(className, slotCount) {
+  const config = getBlankBracketConfig(className, slotCount);
+  const blankState = createEmptyBracketState(config);
+  return {
+    config,
+    rounds: blankState.rounds,
+    thirdPlaceWinner: "",
+    thirdPlaceParticipantIds: ["", ""],
+    thirdPlaceOptionIds: [],
+    thirdPlaceLoserId: "",
   };
 }
 
@@ -2040,7 +2321,16 @@ function buildThirdPlaceMarkup(record, interactive, viewBoxWidth, viewBoxHeight,
   };
 }
 
-function buildBracketPageMarkup(className, record, pageGroup, pageNumber, totalPages, interactive) {
+function buildBracketPageMarkup(
+  className,
+  record,
+  pageGroup,
+  pageNumber,
+  totalPages,
+  interactive,
+  options = {},
+) {
+  const { blank = false, blankSlotCount = null } = options;
   const pagePreset =
     getRoundOfThirtyTwoIntroPreset(pageGroup, totalPages) ||
     getRoundOfSixteenBracketPreset(pageGroup);
@@ -2142,7 +2432,11 @@ function buildBracketPageMarkup(className, record, pageGroup, pageNumber, totalP
       ${buildSummarySheetBrand()}
       <div class="summary-sheet-title-row">
         <div class="summary-sheet-title">รุ่น ${escapeHtml(className || "-")}</div>
-        <div class="summary-sheet-note summary-sheet-note--inline">ผู้สมัคร ${record.config.entries.length} ทีม | หน้า ${pageNumber} / ${totalPages}</div>
+        <div class="summary-sheet-note summary-sheet-note--inline">${escapeHtml(
+          blank
+            ? `แบบเปล่าสำหรับเขียนหน้างาน | ${blankSlotCount || record.config.rounds[0]?.count || 16} ทีม${totalPages > 1 ? ` | หน้า ${pageNumber} / ${totalPages}` : ""}`
+            : `ผู้สมัคร ${record.config.entries.length} ทีม | หน้า ${pageNumber} / ${totalPages}`,
+        )}</div>
       </div>
       <div class="bracket-canvas" style="padding-top:${canvasPaddingTop}%">
         <svg viewBox="0 0 ${viewBoxWidth} ${viewBoxHeight}" preserveAspectRatio="none" class="bracket-canvas-svg" xmlns="http://www.w3.org/2000/svg" aria-label="Bracket page ${pageNumber}">
@@ -2158,10 +2452,12 @@ function buildBracketPageMarkup(className, record, pageGroup, pageNumber, totalP
 }
 
 function buildBracketSummary(className, options = {}) {
-  const { interactive = false } = options;
-  const record = getBracketRecord(className);
+  const { interactive = false, blank = false, blankSlotCount = 16 } = options;
+  const record = blank
+    ? getBlankBracketRecord(className, blankSlotCount)
+    : getBracketRecord(className);
 
-  if (record.config.entries.length < 2) {
+  if (!blank && record.config.entries.length < 2) {
     return `
       <section class="summary-sheet summary-sheet-bracket">
         ${buildSummarySheetBrand()}
@@ -2173,7 +2469,15 @@ function buildBracketSummary(className, options = {}) {
 
   const pages = record.config.pageGroups
     .map((pageGroup, index) => {
-      return buildBracketPageMarkup(className, record, pageGroup, index + 1, record.config.pageGroups.length, interactive);
+      return buildBracketPageMarkup(
+        className,
+        record,
+        pageGroup,
+        index + 1,
+        record.config.pageGroups.length,
+        interactive,
+        { blank, blankSlotCount },
+      );
     })
     .join("");
 
@@ -2204,10 +2508,12 @@ function getSummaryMetaText(className) {
 
   return `ผู้สมัคร ${registrations.length} รายการ | รถที่ลงแข่ง ${bikeEntries.length} คัน`;
 }
-function buildSummaryDocument() {
+function buildSummaryDocument(options = {}) {
+  const { blank = false } = options;
   const className = state.selectedSummaryClass;
   const templateId = state.selectedSummaryTemplate;
   const template = getSummaryTemplate(templateId);
+  const blankBracketSlotCount = getSelectedBlankBracketSlotCount();
 
   if (!className || !template) {
     return {
@@ -2224,28 +2530,28 @@ function buildSummaryDocument() {
 
   if (templateId === "name-only") {
     return {
-      title: `${EVENT_BRAND.fullName} | ${template.label} ${className}`,
-      html: buildNameOnlySummary(className),
+      title: `${EVENT_BRAND.fullName} | ${template.label} ${className}${blank ? " (แบบเปล่า)" : ""}`,
+      html: buildNameOnlySummary(className, { blank }),
     };
   }
 
   if (templateId === "with-vehicle-numbers") {
     return {
-      title: `${EVENT_BRAND.fullName} | ${template.label} ${className}`,
-      html: buildVehicleSummary(className),
+      title: `${EVENT_BRAND.fullName} | ${template.label} ${className}${blank ? " (แบบเปล่า)" : ""}`,
+      html: buildVehicleSummary(className, { blank }),
     };
   }
 
   if (templateId === "timing-sheet") {
     return {
-      title: `${EVENT_BRAND.fullName} | ${template.label} ${className}`,
-      html: buildTimingSummary(className),
+      title: `${EVENT_BRAND.fullName} | ${template.label} ${className}${blank ? " (แบบเปล่า)" : ""}`,
+      html: buildTimingSummary(className, { blank }),
     };
   }
 
   return {
-    title: `${EVENT_BRAND.fullName} | ${template.label} ${className}`,
-    html: buildBracketSummary(className),
+    title: `${EVENT_BRAND.fullName} | ${template.label} ${className}${blank ? ` (แบบเปล่า ${blankBracketSlotCount} ทีม)` : ""}`,
+    html: buildBracketSummary(className, { blank, blankSlotCount: blankBracketSlotCount }),
   };
 }
 
@@ -2256,9 +2562,10 @@ function renderSummaryPreview() {
 
   const className = state.selectedSummaryClass;
   const summaryDocument = buildSummaryDocument();
+  renderSummaryActionPanel();
+  renderSummaryPreviewMetaChips();
 
   if (!className) {
-    elements.summaryPreviewMeta.textContent = "ยังไม่มีรุ่นแข่งขันสำหรับสร้างหน้าสรุป";
     elements.summaryPreview.innerHTML = summaryDocument.html;
     return;
   }
@@ -2267,8 +2574,6 @@ function renderSummaryPreview() {
   const previewHtml = isBracketTemplate
     ? buildBracketSummary(className, { interactive: true })
     : summaryDocument.html;
-
-  elements.summaryPreviewMeta.textContent = `${getSummaryMetaText(className)} | แบบพิมพ์: ${getSummaryTemplate(state.selectedSummaryTemplate)?.label || "-"}`;
   elements.summaryPreview.innerHTML = `
     <div class="summary-preview-paper${isBracketTemplate ? " summary-preview-paper-bracket" : ""}">
       ${previewHtml}
@@ -2527,6 +2832,7 @@ function resetForm() {
   state.editingId = null;
   clearRequestedRegistrationId();
   elements.registrationForm.reset();
+  resetTeamContactFieldValidation();
   if (hasElement("formModeBadge")) {
     elements.formModeBadge.textContent =
       currentPage === "applicants" ? "แก้ไขข้อมูลในรายการ" : "สร้างรายการใหม่";
@@ -2560,6 +2866,7 @@ function fillForm(registration) {
   }
 
   state.editingId = registration.id;
+  resetTeamContactFieldValidation();
   elements.registrationForm.applicantName.value = registration.applicantName;
   elements.registrationForm.address.value = registration.address;
   elements.registrationForm.contactPhone.value = registration.contactPhone || "";
@@ -2998,6 +3305,16 @@ function printSummaryDocument() {
   openPrintWindow(summaryDocument.title, summaryDocument.html);
 }
 
+function printBlankSummaryDocument() {
+  const summaryDocument = buildSummaryDocument({ blank: true });
+  if (!state.selectedSummaryClass) {
+    setStatus("กรุณาเลือกรุ่นแข่งขันก่อนพิมพ์แบบเปล่า", "warning");
+    return;
+  }
+
+  openPrintWindow(summaryDocument.title, summaryDocument.html);
+}
+
 async function addClass(className) {
   return api("/api/meta/classes", {
     method: "POST",
@@ -3138,6 +3455,11 @@ async function reloadRegistrations() {
 
 async function handleSubmit(event) {
   event.preventDefault();
+  if (!validateTeamContactFields({ showValidationMessage: true })) {
+    setStatus("กรุณากรอกข้อมูลทีมและการติดต่อให้ครบทุกช่อง", "warning");
+    return;
+  }
+
   const isEditing = Boolean(state.editingId);
   const payload = getRegistrationPayload();
   if (!payload) {
@@ -3266,6 +3588,15 @@ function bindEvents() {
     });
   });
   bindIfPresent(elements.classForm, "submit", handleClassSubmit);
+  for (const field of REQUIRED_TEAM_CONTACT_FIELDS) {
+    const input = getRegistrationFormField(field.name);
+    bindIfPresent(input, "input", () => {
+      validateTeamContactFields();
+    });
+    bindIfPresent(input, "blur", () => {
+      validateTeamContactFields();
+    });
+  }
   bindIfPresent(elements.classEntriesContainer, "click", (event) => {
     const target = event.target.closest("[data-action='remove-class-entry']");
     if (!target) {
@@ -3331,6 +3662,7 @@ function bindEvents() {
     renderRegistrations();
   });
   bindIfPresent(elements.printAllButton, "click", printAllRegistrations);
+  bindIfPresent(elements.printBlankSummaryButton, "click", printBlankSummaryDocument);
   bindIfPresent(elements.printSummaryButton, "click", printSummaryDocument);
   document.addEventListener("keydown", (event) => {
     const isApplicantEditModalOpen =
@@ -3386,6 +3718,12 @@ function bindEvents() {
 
   bindIfPresent(elements.summaryClassSelect, "change", (event) => {
     state.selectedSummaryClass = event.target.value;
+    renderSummaryPreview();
+  });
+
+  bindIfPresent(elements.summaryBlankBracketSizeSelect, "change", (event) => {
+    state.selectedBlankBracketSize = event.target.value === "8" ? "8" : "16";
+    renderBlankBracketSizeControl();
     renderSummaryPreview();
   });
 

@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>สรุปและพิมพ์เอกสาร | งานแข่งรถไฮสปีด บิดหมดปลอก</title>
-    <link rel="stylesheet" href="/styles.css?v=20260314-inline-applicant-edit" />
+    <link rel="stylesheet" href="/styles.css?v=20260314-ux-refresh-all-pages" />
   </head>
   <body data-page="summary">
     <div class="page-shell">
@@ -91,35 +91,106 @@
                 และจุดควบคุมการแข่งขัน
               </p>
             </div>
-            <button class="button button-primary" type="button" id="printSummaryButton">
-              พิมพ์หน้าสรุป
-            </button>
+          </div>
+
+          <div class="summary-workflow" aria-label="ขั้นตอนใช้งานหน้าสรุป">
+            <article class="summary-workflow-card">
+              <span class="summary-workflow-index">1</span>
+              <div class="summary-workflow-copy">
+                <strong>เลือกรุ่นแข่ง</strong>
+                <p>เลือก class ที่ต้องการสร้างเอกสารก่อนทุกครั้ง</p>
+              </div>
+            </article>
+            <article class="summary-workflow-card">
+              <span class="summary-workflow-index">2</span>
+              <div class="summary-workflow-copy">
+                <strong>เลือกแบบพิมพ์</strong>
+                <p>กดการ์ดแบบพิมพ์ แล้วดูตัวอย่างด้านล่างได้ทันที</p>
+              </div>
+            </article>
+            <article class="summary-workflow-card">
+              <span class="summary-workflow-index">3</span>
+              <div class="summary-workflow-copy">
+                <strong>เลือกพิมพ์จริงหรือแบบเปล่า</strong>
+                <p>พิมพ์ข้อมูลจริง หรือเตรียมกระดาษเปล่าไว้เขียนหน้างาน</p>
+              </div>
+            </article>
           </div>
 
           <div class="status-banner" id="statusBanner" role="status" aria-live="polite">
             พร้อมสร้างหน้าสรุปและพิมพ์เอกสาร
           </div>
 
-          <div class="summary-toolbar" aria-label="แนวทางสร้างเอกสารสรุป">
-            <span class="shortcut-chip">เลือกรุ่นแล้วดูตัวอย่างได้ทันทีโดยไม่ต้องเปิดหน้าต่างใหม่</span>
-            <span class="shortcut-chip">สลับแบบพิมพ์เพื่อเช็กความพร้อมของรายชื่อ จับเวลา และสายประกบ</span>
-            <span class="shortcut-chip">กดพิมพ์หน้าสรุปเมื่อได้รูปแบบที่พร้อมใช้งานหน้างานแล้ว</span>
+          <div class="summary-config-grid">
+            <section class="summary-controls">
+              <div class="summary-section-head">
+                <p class="panel-kicker">Step 1</p>
+                <h3>ตั้งค่าเอกสาร</h3>
+                <p>เลือกรุ่นให้ตรงก่อน แล้วค่อยเลือกแบบพิมพ์ที่ต้องการใช้งาน</p>
+              </div>
+
+              <div class="summary-field-grid">
+                <label class="field summary-select-field">
+                  <span>เลือกรุ่นที่ต้องการสรุป</span>
+                  <select id="summaryClassSelect"></select>
+                </label>
+                <label
+                  class="field summary-select-field"
+                  id="summaryBlankBracketSizeField"
+                  hidden
+                >
+                  <span>ผังสายประกบแบบเปล่า</span>
+                  <select id="summaryBlankBracketSizeSelect">
+                    <option value="8">พิมพ์แบบ 8 ทีม</option>
+                    <option value="16" selected>พิมพ์แบบ 16 ทีม</option>
+                  </select>
+                  <small class="field-hint">
+                    ใช้กับปุ่มพิมพ์แบบเปล่าเมื่อเลือกแบบฟอร์มสายประกบรุ่นแข่ง
+                  </small>
+                </label>
+              </div>
+
+              <div class="summary-section-head summary-section-head--compact">
+                <p class="panel-kicker">Step 2</p>
+                <h3>เลือกแบบพิมพ์</h3>
+                <p>กดที่การ์ดแบบพิมพ์เพื่อสลับตัวอย่างและโหมดพิมพ์ได้ทันที</p>
+              </div>
+
+              <div id="summaryTemplateList" class="summary-template-list"></div>
+            </section>
+
+            <aside class="summary-action-card">
+              <p class="panel-kicker">Step 3</p>
+              <h3 id="summaryActionTitle">เลือกรุ่นและแบบพิมพ์ก่อน</h3>
+              <p id="summaryActionCopy" class="summary-action-copy">
+                เมื่อเลือกครบแล้ว ระบบจะสรุปให้ว่าปุ่มไหนพิมพ์อะไรออกมา
+              </p>
+              <div id="summaryActionSummary" class="summary-action-summary"></div>
+              <div class="page-tools summary-panel-actions summary-panel-actions--stack">
+                <button class="button button-secondary" type="button" id="printBlankSummaryButton">
+                  พิมพ์แบบเปล่า
+                </button>
+                <button class="button button-primary" type="button" id="printSummaryButton">
+                  พิมพ์หน้าสรุป
+                </button>
+              </div>
+              <div id="summaryActionHint" class="summary-action-hint"></div>
+            </aside>
           </div>
 
-          <div class="summary-controls">
-            <label class="field summary-select-field">
-              <span>เลือกรุ่นที่ต้องการสรุป</span>
-              <select id="summaryClassSelect"></select>
-            </label>
+          <div class="summary-preview-header">
+            <div class="summary-preview-title-copy">
+              <p class="panel-kicker">Preview</p>
+              <h3>ตัวอย่างก่อนพิมพ์</h3>
+              <p>ตรวจความถูกต้องของเอกสารก่อนสั่งพิมพ์จริง</p>
+            </div>
+            <div id="summaryPreviewMeta" class="summary-preview-meta"></div>
           </div>
-
-          <div id="summaryTemplateList" class="summary-template-list"></div>
-          <div id="summaryPreviewMeta" class="summary-preview-meta"></div>
           <div id="summaryPreview" class="summary-preview-shell"></div>
         </section>
       </main>
     </div>
 
-    <script src="/app.js?v=20260314-inline-applicant-edit"></script>
+    <script src="/app.js?v=20260314-ux-refresh-all-pages"></script>
   </body>
 </html>
