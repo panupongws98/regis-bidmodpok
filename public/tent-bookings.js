@@ -3,6 +3,36 @@ const SVG_BOARD = {
   width: 1835,
   height: 1166,
 };
+const MOBILE_BREAKPOINT = 720;
+const MOBILE_ZONE_VIEWS = {
+  ALL: {
+    x: 0,
+    width: SVG_BOARD.width,
+  },
+  A: {
+    x: 72,
+    width: 390,
+  },
+  B: {
+    x: 0,
+    width: 340,
+  },
+  C: {
+    x: 330,
+    width: 1505,
+  },
+  D: {
+    x: 130,
+    width: 1510,
+  },
+};
+const MOBILE_ZONE_BUTTONS = [
+  { code: "ALL", label: "ทั้งผัง" },
+  { code: "A", label: "โซน A" },
+  { code: "B", label: "โซน B" },
+  { code: "C", label: "โซน C" },
+  { code: "D", label: "โซน D" },
+];
 const SLOT_LAYOUTS = {
   A: {
     x: 97,
@@ -73,6 +103,7 @@ const elements = {
 const state = {
   availableSlots: 0,
   lastUpdatedAt: "",
+  mobileFocusZone: "ALL",
   registrations: [],
   savingSlotId: "",
   selectedSlotId: "",
@@ -193,6 +224,10 @@ function syncSelectedSlot() {
 function getSelectedSlot() {
   syncSelectedSlot();
   return state.slots.find((slot) => slot.id === state.selectedSlotId) || null;
+}
+
+function isCompactViewport() {
+  return window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`).matches;
 }
 
 function buildApplicantOptions(selectedId) {
@@ -500,6 +535,33 @@ function renderDecorativeStalls() {
   }).join("");
 }
 
+function renderMobileZoneNav() {
+  return `
+    <section class="tent-mobile-zone-nav" aria-label="ตัวช่วยดูผังบนมือถือ">
+      <div class="tent-mobile-zone-copy">
+        <p class="section-kicker">Mobile View</p>
+        <strong>เลือกโซนหรือปัดซ้ายขวาเพื่อดูผังให้ชัดขึ้น</strong>
+      </div>
+      <div class="tent-mobile-zone-list" role="tablist" aria-label="เลือกตำแหน่งในผัง">
+        ${MOBILE_ZONE_BUTTONS.map((zone) => {
+          const isActive = state.mobileFocusZone === zone.code;
+          return `
+            <button
+              class="tent-mobile-zone-button${isActive ? " is-active" : ""}"
+              type="button"
+              data-action="focus-zone"
+              data-zone="${zone.code}"
+              aria-pressed="${isActive}"
+            >
+              ${zone.label}
+            </button>
+          `;
+        }).join("")}
+      </div>
+    </section>
+  `;
+}
+
 function renderEditorCard() {
   const selectedSlot = getSelectedSlot();
 
@@ -686,11 +748,14 @@ function renderMap() {
   }
 
   elements.tentMap.innerHTML = `
+    ${renderMobileZoneNav()}
     <div class="venue-map-workspace">
       ${renderVenueMapBoard()}
       ${renderEditorCard()}
     </div>
   `;
+
+  queueMobileZoneFocus();
 }
 
 function renderStats() {
@@ -836,6 +901,76 @@ function handlePrint() {
   window.print();
 }
 
+function scrollMobileMapToZone(zoneCode, behavior = "auto") {
+  if (!isCompactViewport()) {
+    return;
+  }
+
+  const scroller = elements.tentMap?.querySelector(".venue-map-scroller");
+  const board = elements.tentMap?.querySelector(".venue-map-board");
+  const focusView = MOBILE_ZONE_VIEWS[zoneCode] || MOBILE_ZONE_VIEWS.ALL;
+
+  if (!scroller || !board || !focusView) {
+    return;
+  }
+
+  const scale = board.clientWidth / SVG_BOARD.width;
+  const maxScrollLeft = Math.max(board.clientWidth - scroller.clientWidth, 0);
+
+  if (zoneCode === "ALL" || maxScrollLeft === 0) {
+    scroller.scrollTo({
+      left: 0,
+      behavior,
+    });
+    return;
+  }
+
+  const focusedLeft = focusView.x * scale;
+  const focusedWidth = focusView.width * scale;
+  const centeredLeft = focusedLeft + focusedWidth / 2 - scroller.clientWidth / 2;
+  const nextLeft = Math.max(0, Math.min(centeredLeft, maxScrollLeft));
+
+  scroller.scrollTo({
+    left: nextLeft,
+    behavior,
+  });
+}
+
+function queueMobileZoneFocus(behavior = "auto") {
+  window.requestAnimationFrame(() => {
+    scrollMobileMapToZone(state.mobileFocusZone, behavior);
+  });
+}
+
+function syncMobileZoneButtons() {
+  elements.tentMap
+    ?.querySelectorAll("[data-action='focus-zone']")
+    .forEach((button) => {
+      const isActive = button.dataset.zone === state.mobileFocusZone;
+      button.classList.toggle("is-active", isActive);
+      button.setAttribute("aria-pressed", String(isActive));
+    });
+}
+
+function handleZoneFocus(target) {
+  const zoneCode = target.dataset.zone;
+  if (!zoneCode || !MOBILE_ZONE_VIEWS[zoneCode]) {
+    return;
+  }
+
+  state.mobileFocusZone = zoneCode;
+  syncMobileZoneButtons();
+  scrollMobileMapToZone(zoneCode, "smooth");
+}
+
+function handleWindowResize() {
+  if (!state.slots.length) {
+    return;
+  }
+
+  queueMobileZoneFocus();
+}
+
 function bindEvents() {
   elements.printButton?.addEventListener("click", () => {
     handlePrint();
@@ -849,6 +984,11 @@ function bindEvents() {
     const clearButton = findClosestDataElement(event.target, "action");
     if (clearButton?.dataset.action === "clear-slot-booking") {
       handleClearSlotBooking();
+      return;
+    }
+
+    if (clearButton?.dataset.action === "focus-zone") {
+      handleZoneFocus(clearButton);
       return;
     }
 
@@ -880,6 +1020,8 @@ function bindEvents() {
 
     handleEditorSelection(select);
   });
+
+  window.addEventListener("resize", handleWindowResize);
 }
 
 async function init() {

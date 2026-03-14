@@ -93,6 +93,50 @@
   gap: 18px;
 }
 
+.tent-mobile-zone-nav {
+  display: none;
+}
+
+.tent-mobile-zone-copy {
+  display: grid;
+  gap: 6px;
+}
+
+.tent-mobile-zone-copy strong {
+  font-size: 0.98rem;
+  line-height: 1.45;
+}
+
+.tent-mobile-zone-list {
+  display: flex;
+  gap: 10px;
+}
+
+.tent-mobile-zone-button {
+  flex: 0 0 auto;
+  min-width: 88px;
+  padding: 10px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #f7f8fb;
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    transform 160ms ease;
+}
+
+.tent-mobile-zone-button.is-active {
+  border-color: rgba(255, 196, 71, 0.58);
+  background:
+    linear-gradient(145deg, rgba(255, 196, 71, 0.22), rgba(255, 255, 255, 0.06)),
+    rgba(255, 255, 255, 0.08);
+}
+
 .venue-map-workspace {
   display: grid;
   gap: 18px;
@@ -101,6 +145,7 @@
 
 .venue-map-scroller {
   overflow: auto;
+  scroll-behavior: smooth;
   padding: 8px;
   border: 1px dashed rgba(255, 255, 255, 0.18);
   border-radius: 22px;
@@ -557,8 +602,64 @@
     grid-template-columns: 1fr;
   }
 
+  .tent-page-panel > .panel-header {
+    order: 1;
+  }
+
+  .tent-page-panel > .status-banner {
+    order: 2;
+  }
+
+  .tent-page-panel > .tent-map-shell {
+    order: 3;
+  }
+
+  .tent-page-panel > .tent-toolbar {
+    order: 4;
+  }
+
+  .tent-map-shell {
+    gap: 14px;
+  }
+
+  .tent-mobile-zone-nav {
+    display: grid;
+    gap: 12px;
+    padding: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 20px;
+    background:
+      linear-gradient(145deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02)),
+      rgba(10, 14, 22, 0.88);
+    box-shadow: 0 18px 36px rgba(0, 0, 0, 0.2);
+  }
+
+  .tent-mobile-zone-list {
+    overflow-x: auto;
+    padding-bottom: 4px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .tent-mobile-zone-list::-webkit-scrollbar {
+    display: none;
+  }
+
   .venue-map-scroller {
     padding: 6px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+  }
+
+  .tent-map-shell .venue-map-board {
+    width: min(1835px, max(1500px, 340vw));
+    max-width: none;
+    margin: 0;
+  }
+
+  .venue-editor-card {
+    padding: 16px;
   }
 
   .venue-editor-actions .button {
@@ -753,6 +854,7 @@
   .system-nav,
   .panel-header,
   .status-banner,
+  .tent-mobile-zone-nav,
   .tent-toolbar,
   .venue-editor-card {
     display: none !important;
