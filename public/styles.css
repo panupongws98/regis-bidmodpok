@@ -666,6 +666,10 @@ body.modal-open {
   box-shadow: 0 32px 70px rgba(0, 0, 0, 0.42);
 }
 
+.modal-panel-wide {
+  width: min(1120px, 100%);
+}
+
 .modal-header {
   display: flex;
   align-items: flex-start;
@@ -683,6 +687,14 @@ body.modal-open {
   margin: 10px 0 0;
   color: var(--muted);
   line-height: 1.6;
+}
+
+.applicant-edit-modal-copy {
+  max-width: 72ch;
+}
+
+.applicant-edit-form {
+  margin-top: 18px;
 }
 
 .print-modal-actions {

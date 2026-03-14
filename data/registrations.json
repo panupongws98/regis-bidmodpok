@@ -6,7 +6,7 @@
     "contactPhone": "152345",
     "entries": [
       {
-        "raceClass": "56 ชัก 3 (ไฮสปีด)",
+        "raceClass": "WAVE110i 56 ชัก 3 (อะไหล่ไฮสปีด)",
         "vehicleCount": 1,
         "bikeNumbers": [
           "531"
@@ -14,7 +14,7 @@
       }
     ],
     "createdAt": "2026-03-10T07:03:42.401Z",
-    "updatedAt": "2026-03-11T08:01:42.258Z"
+    "updatedAt": "2026-03-14T01:44:14.341Z"
   },
   {
     "id": "b63fd8cc-aed5-406d-8774-ef27f3e4e019",
@@ -23,7 +23,7 @@
     "contactPhone": "4834538453",
     "entries": [
       {
-        "raceClass": "56 ชัก 3 (ไฮสปีด)",
+        "raceClass": "WAVE110i 56 ชัก 3 (อะไหล่ไฮสปีด)",
         "vehicleCount": 1,
         "bikeNumbers": [
           "362"
@@ -31,7 +31,7 @@
       }
     ],
     "createdAt": "2026-03-10T07:04:12.962Z",
-    "updatedAt": "2026-03-11T08:01:42.258Z"
+    "updatedAt": "2026-03-14T01:44:14.341Z"
   },
   {
     "id": "70bd8246-4705-4cd3-9345-ef580d807c29",
@@ -40,7 +40,7 @@
     "contactPhone": "0984209256",
     "entries": [
       {
-        "raceClass": "56 ชัก 3 (ไฮสปีด)",
+        "raceClass": "WAVE110i 56 ชัก 3 (อะไหล่ไฮสปีด)",
         "vehicleCount": 1,
         "bikeNumbers": [
           "999"
@@ -48,7 +48,7 @@
       }
     ],
     "createdAt": "2026-03-10T09:37:09.039Z",
-    "updatedAt": "2026-03-11T08:01:42.258Z"
+    "updatedAt": "2026-03-14T01:44:14.341Z"
   },
   {
     "id": "f66996c2-69e8-4042-a374-94880674540c",
@@ -57,7 +57,7 @@
     "contactPhone": "0985353335",
     "entries": [
       {
-        "raceClass": "56 ชัก 3 (ไฮสปีด)",
+        "raceClass": "WAVE110i 56 ชัก 3 (อะไหล่ไฮสปีด)",
         "vehicleCount": 1,
         "bikeNumbers": [
           "777"
@@ -65,7 +65,7 @@
       }
     ],
     "createdAt": "2026-03-11T00:41:14.087Z",
-    "updatedAt": "2026-03-11T08:01:42.258Z"
+    "updatedAt": "2026-03-14T01:44:14.341Z"
   },
   {
     "id": "5e5a5084-ee60-449a-af40-b75add62165a",
@@ -74,7 +74,7 @@
     "contactPhone": "0985452421",
     "entries": [
       {
-        "raceClass": "56 ชัก 3 (ไฮสปีด)",
+        "raceClass": "WAVE110i 56 ชัก 3 (อะไหล่ไฮสปีด)",
         "vehicleCount": 1,
         "bikeNumbers": [
           "666"
@@ -82,7 +82,7 @@
       }
     ],
     "createdAt": "2026-03-11T00:42:29.593Z",
-    "updatedAt": "2026-03-11T08:01:42.258Z"
+    "updatedAt": "2026-03-14T01:44:14.341Z"
   },
   {
     "id": "466bd8d3-929f-4234-9819-da90b13646b7",
@@ -91,14 +91,7 @@
     "contactPhone": "0984062075",
     "entries": [
       {
-        "raceClass": "56 ชัก 3 (ไฮสปีด)",
-        "vehicleCount": 1,
-        "bikeNumbers": [
-          "559"
-        ]
-      },
-      {
-        "raceClass": "56 ชัก 3 ตรอ 110i หรือบังลม (ไม่บังคับอะไหล่)",
+        "raceClass": "WAVE110i 56 ชัก 3 (อะไหล่ไฮสปีด)",
         "vehicleCount": 1,
         "bikeNumbers": [
           "559"
@@ -106,7 +99,7 @@
       }
     ],
     "createdAt": "2026-03-11T09:15:58.888Z",
-    "updatedAt": "2026-03-11T09:15:58.888Z"
+    "updatedAt": "2026-03-14T01:44:14.341Z"
   },
   {
     "id": "a7c999d6-7d09-40bf-bb24-faefd9808c43",
@@ -115,14 +108,7 @@
     "contactPhone": "0984092076",
     "entries": [
       {
-        "raceClass": "56 ชัก 3 (ไฮสปีด)",
-        "vehicleCount": 1,
-        "bikeNumbers": [
-          "458"
-        ]
-      },
-      {
-        "raceClass": "56 ชัก 3 ตรอ 110i หรือบังลม (ไม่บังคับอะไหล่)",
+        "raceClass": "WAVE110i 56 ชัก 3 (อะไหล่ไฮสปีด)",
         "vehicleCount": 1,
         "bikeNumbers": [
           "458"
@@ -130,7 +116,7 @@
       }
     ],
     "createdAt": "2026-03-12T02:49:42.199Z",
-    "updatedAt": "2026-03-12T02:49:42.199Z"
+    "updatedAt": "2026-03-14T01:44:14.341Z"
   },
   {
     "id": "0f48a1d4-da4b-479a-a583-fc5ffbc1a484",
@@ -139,7 +125,7 @@
     "contactPhone": "0984562075",
     "entries": [
       {
-        "raceClass": "56 ชัก 3 (ไฮสปีด)",
+        "raceClass": "WAVE110i 56 ชัก 3 (อะไหล่ไฮสปีด)",
         "vehicleCount": 1,
         "bikeNumbers": [
           "441"
@@ -147,6 +133,6 @@
       }
     ],
     "createdAt": "2026-03-12T08:24:55.192Z",
-    "updatedAt": "2026-03-12T08:24:55.192Z"
+    "updatedAt": "2026-03-14T01:44:14.341Z"
   }
 ]

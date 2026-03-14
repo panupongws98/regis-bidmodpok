@@ -63,10 +63,10 @@ const SUMMARY_ROWS_PER_PAGE = {
 };
 const currentPage = document.body.dataset.page || "registration";
 const DEFAULT_STATUS_MESSAGES = {
-  registration: `พร้อมเปิดรับผู้สมัคร ${EVENT_BRAND.fullName}`,
-  classes: `พร้อมจัดการรุ่นแข่งขันของ ${EVENT_BRAND.fullName}`,
-  applicants: `พร้อมแสดงรายชื่อผู้สมัคร ${EVENT_BRAND.fullName}`,
-  summary: `พร้อมสร้างหน้าสรุปและพิมพ์เอกสาร ${EVENT_BRAND.fullName}`,
+  registration: "พร้อมเปิดรับผู้สมัคร",
+  classes: "พร้อมจัดการรุ่นแข่งขัน",
+  applicants: "พร้อมแสดงรายชื่อผู้สมัคร",
+  summary: "พร้อมสร้างหน้าสรุปและพิมพ์เอกสาร",
 };
 const REGISTRATIONS_PER_PAGE = 5;
 
@@ -189,8 +189,12 @@ const elements = {
   classCountBadge: document.querySelector("#classCountBadge"),
   classForm: document.querySelector("#classForm"),
   classList: document.querySelector("#classList"),
+  applicantEditModal: document.querySelector("#applicantEditModal"),
+  closeApplicantEditModalButton: document.querySelector("#closeApplicantEditModalButton"),
+  closeApplicantEditModalButtonSecondary: document.querySelector("#closeApplicantEditModalButtonSecondary"),
   closePrintModalButton: document.querySelector("#closePrintModalButton"),
   closePrintModalButtonSecondary: document.querySelector("#closePrintModalButtonSecondary"),
+  editModalStatusBanner: document.querySelector("#editModalStatusBanner"),
   formModeBadge: document.querySelector("#formModeBadge"),
   newClassInput: document.querySelector("#newClassInput"),
   openPrintModalButton: document.querySelector("#openPrintModalButton"),
@@ -229,7 +233,7 @@ function getRequestedRegistrationId() {
 }
 
 function clearRequestedRegistrationId() {
-  if (currentPage !== "registration") {
+  if (currentPage !== "registration" && currentPage !== "applicants") {
     return;
   }
 
@@ -245,6 +249,17 @@ function clearRequestedRegistrationId() {
 }
 
 function openRegistrationEditor(registrationId) {
+  if (currentPage === "applicants" && hasElement("applicantEditModal") && hasElement("registrationForm")) {
+    const registration = state.registrations.find((item) => item.id === registrationId);
+    if (!registration) {
+      setStatus("ไม่พบข้อมูลผู้สมัครที่ต้องการแก้ไข", "warning");
+      return;
+    }
+
+    openApplicantEditModal(registration);
+    return;
+  }
+
   window.location.assign(`/index.html?edit=${encodeURIComponent(registrationId)}`);
 }
 
@@ -470,6 +485,7 @@ function applyStatusState(target, message, tone) {
 
 function setStatus(message, tone = "success") {
   applyStatusState(elements.statusBanner, message, tone);
+  applyStatusState(elements.editModalStatusBanner, message, tone);
   applyStatusState(elements.printModalStatus, message, tone);
 }
 
@@ -487,6 +503,17 @@ function isEditableTarget(target) {
 function scrollRegistrationFormIntoView() {
   if (!hasElement("registrationForm")) {
     return;
+  }
+
+  if (currentPage === "applicants" && hasElement("applicantEditModal") && !elements.applicantEditModal.hidden) {
+    const modalPanel = elements.registrationForm.closest(".modal-panel");
+    if (modalPanel) {
+      modalPanel.scrollTo({
+        top: 0,
+        behavior: prefersReducedMotion() ? "auto" : "smooth",
+      });
+      return;
+    }
   }
 
   elements.registrationForm.scrollIntoView({
@@ -953,7 +980,36 @@ function resetPrintColumns() {
 }
 
 function getPrintModalReadyMessage() {
-  return `พร้อมพิมพ์รายชื่อผู้สมัครรวมของ${EVENT_BRAND.fullName}`;
+  return "พร้อมพิมพ์รายชื่อผู้สมัครรวม";
+}
+
+function getApplicantEditModalReadyMessage() {
+  return "พร้อมแก้ไขข้อมูลผู้สมัครจากหน้ารายชื่อ";
+}
+
+function openApplicantEditModal(registration) {
+  if (!hasElement("applicantEditModal") || !hasElement("registrationForm")) {
+    return;
+  }
+
+  applyStatusState(elements.editModalStatusBanner, getApplicantEditModalReadyMessage(), "success");
+  elements.applicantEditModal.hidden = false;
+  document.body.classList.add("modal-open");
+  fillForm(registration);
+}
+
+function closeApplicantEditModal(restoreFocus = false) {
+  if (!hasElement("applicantEditModal") || elements.applicantEditModal.hidden) {
+    return;
+  }
+
+  elements.applicantEditModal.hidden = true;
+  document.body.classList.remove("modal-open");
+  applyStatusState(elements.editModalStatusBanner, getApplicantEditModalReadyMessage(), "success");
+
+  if (restoreFocus) {
+    elements.searchInput?.focus();
+  }
 }
 
 function openPrintModal() {
@@ -2463,13 +2519,36 @@ function resetForm() {
     return;
   }
 
+  const shouldCloseApplicantModal =
+    currentPage === "applicants" &&
+    hasElement("applicantEditModal") &&
+    !elements.applicantEditModal.hidden;
+
   state.editingId = null;
   clearRequestedRegistrationId();
   elements.registrationForm.reset();
-  elements.formModeBadge.textContent = "สร้างรายการใหม่";
-  elements.submitButton.textContent = "บันทึกข้อมูล";
+  if (hasElement("formModeBadge")) {
+    elements.formModeBadge.textContent =
+      currentPage === "applicants" ? "แก้ไขข้อมูลในรายการ" : "สร้างรายการใหม่";
+  }
+  if (hasElement("submitButton")) {
+    elements.submitButton.textContent =
+      currentPage === "applicants" ? "อัปเดตข้อมูล" : "บันทึกข้อมูล";
+  }
   renderClassEntries([createEmptyRegistrationEntry()]);
-  setStatus(getDefaultStatusMessage());
+
+  if (shouldCloseApplicantModal) {
+    closeApplicantEditModal();
+  }
+
+  setStatus(
+    currentPage === "applicants" ? getApplicantEditModalReadyMessage() : getDefaultStatusMessage(),
+  );
+
+  if (currentPage === "applicants") {
+    return;
+  }
+
   window.requestAnimationFrame(() => {
     focusApplicantNameInput();
   });
@@ -3152,6 +3231,11 @@ function applyRequestedRegistrationEdit() {
     return true;
   }
 
+  if (currentPage === "applicants" && hasElement("applicantEditModal")) {
+    openApplicantEditModal(registration);
+    return true;
+  }
+
   fillForm(registration);
   return true;
 }
@@ -3166,6 +3250,12 @@ function bindIfPresent(element, eventName, handler) {
 
 function bindEvents() {
   bindIfPresent(elements.cancelEditButton, "click", resetForm);
+  bindIfPresent(elements.closeApplicantEditModalButton, "click", () => {
+    resetForm();
+  });
+  bindIfPresent(elements.closeApplicantEditModalButtonSecondary, "click", () => {
+    resetForm();
+  });
   bindIfPresent(elements.addClassEntryButton, "click", () => {
     const entries = collectRegistrationEntries();
     const nextEntryIndex = entries.length;
@@ -3214,6 +3304,13 @@ function bindEvents() {
     });
   });
   bindIfPresent(elements.registrationForm, "submit", handleSubmit);
+  bindIfPresent(elements.applicantEditModal, "click", (event) => {
+    if (event.target !== elements.applicantEditModal) {
+      return;
+    }
+
+    resetForm();
+  });
   bindIfPresent(elements.openPrintModalButton, "click", openPrintModal);
   bindIfPresent(elements.closePrintModalButton, "click", () => {
     closePrintModal();
@@ -3236,12 +3333,16 @@ function bindEvents() {
   bindIfPresent(elements.printAllButton, "click", printAllRegistrations);
   bindIfPresent(elements.printSummaryButton, "click", printSummaryDocument);
   document.addEventListener("keydown", (event) => {
+    const isApplicantEditModalOpen =
+      hasElement("applicantEditModal") && !elements.applicantEditModal.hidden;
+
     if (
       event.key === "/" &&
       hasElement("searchInput") &&
       !event.ctrlKey &&
       !event.metaKey &&
       !event.altKey &&
+      !isApplicantEditModalOpen &&
       !isEditableTarget(event.target)
     ) {
       event.preventDefault();
@@ -3274,6 +3375,11 @@ function bindEvents() {
     }
 
     if (event.key === "Escape") {
+      if (hasElement("applicantEditModal") && !elements.applicantEditModal.hidden) {
+        resetForm();
+        return;
+      }
+
       closePrintModal();
     }
   });

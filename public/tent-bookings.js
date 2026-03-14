@@ -1,4 +1,3 @@
-const DECORATIVE_STALLS = Array.from({ length: 12 }, (_, index) => index + 1);
 const SVG_BOARD = {
   width: 1835,
   height: 1166,
@@ -35,47 +34,47 @@ const MOBILE_ZONE_BUTTONS = [
 ];
 const SLOT_LAYOUTS = {
   A: {
-    x: 97,
-    y: 11,
-    width: 326,
-    height: 173,
+    x: 99,
+    y: 118,
+    width: 330,
+    height: 56,
     columns: 6,
-    accentPosition: "bottom",
+    accentPosition: "full",
     accentHeight: 56,
-    labelY: 147,
+    labelY: 33,
     labelSize: 13,
   },
   B: {
-    x: 41,
-    y: 404,
-    width: 273,
-    height: 111,
+    x: 45,
+    y: 399,
+    width: 269,
+    height: 110,
     columns: 5,
     accentPosition: "full",
-    accentHeight: 111,
-    labelY: 66,
+    accentHeight: 110,
+    labelY: 60,
     labelSize: 13,
   },
   C: {
-    x: 367,
-    y: 294,
-    width: 1466,
-    height: 275,
+    x: 376,
+    y: 285,
+    width: 1447,
+    height: 282,
     columns: 27,
     accentPosition: "top",
-    accentHeight: 111,
-    labelY: 59,
+    accentHeight: 112,
+    labelY: 57,
     labelSize: 12,
   },
   D: {
-    x: 205,
-    y: 789,
-    width: 1411,
-    height: 222,
+    x: 210,
+    y: 788,
+    width: 1432,
+    height: 223,
     columns: 26,
     accentPosition: "top",
-    accentHeight: 111,
-    labelY: 59,
+    accentHeight: 112,
+    labelY: 58,
     labelSize: 12,
   },
 };
@@ -228,6 +227,49 @@ function getSelectedSlot() {
 
 function isCompactViewport() {
   return window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`).matches;
+}
+
+function getZoneStats(zoneCode) {
+  const slots = zoneCode === "ALL" ? state.slots : getSlotsForZone(zoneCode);
+  const locked = slots.filter((slot) => !slot.isBookable).length;
+  const booked = slots.filter((slot) => slot.isBookable && slot.registrationId).length;
+  const available = slots.filter((slot) => slot.isBookable && !slot.registrationId).length;
+
+  return {
+    available,
+    booked,
+    locked,
+    total: slots.length,
+  };
+}
+
+function buildZoneHeadline(zoneCode, stats) {
+  if (zoneCode === "ALL") {
+    return `${stats.booked} จองแล้ว`;
+  }
+
+  if (stats.total === stats.locked) {
+    return `ล็อก ${stats.locked} ช่อง`;
+  }
+
+  return `จอง ${stats.booked} / ${stats.total - stats.locked}`;
+}
+
+function buildZoneMeta(zoneCode, stats) {
+  if (zoneCode === "ALL") {
+    const lockedCopy = stats.locked > 0 ? ` · ล็อก ${stats.locked}` : "";
+    return `ว่าง ${stats.available} ช่อง${lockedCopy}`;
+  }
+
+  if (stats.total === stats.locked) {
+    return "ไม่เปิดให้เลือกจอง";
+  }
+
+  if (stats.locked > 0) {
+    return `ว่าง ${stats.available} ช่อง · ล็อก ${stats.locked}`;
+  }
+
+  return `ว่าง ${stats.available} ช่อง`;
 }
 
 function buildApplicantOptions(selectedId) {
@@ -501,50 +543,18 @@ function renderZoneSlots(zoneCode) {
   `;
 }
 
-function renderDecorativeStalls() {
-  const stallWidth = 651 / DECORATIVE_STALLS.length;
-
-  return DECORATIVE_STALLS.map((stall, index) => {
-    const x = 1184 + stallWidth * index;
-    return `
-      <g class="venue-svg-mini-stall">
-        <rect
-          x="${x}"
-          y="1068"
-          width="${stallWidth}"
-          height="98"
-          class="venue-svg-mini-stall-frame"
-        ></rect>
-        <rect
-          x="${x}"
-          y="1068"
-          width="${stallWidth}"
-          height="20"
-          class="venue-svg-mini-stall-band"
-        ></rect>
-        <text
-          x="${x + stallWidth / 2}"
-          y="1085"
-          text-anchor="middle"
-          class="venue-svg-mini-stall-label"
-        >
-          ${stall}
-        </text>
-      </g>
-    `;
-  }).join("");
-}
-
 function renderMobileZoneNav() {
   return `
-    <section class="tent-mobile-zone-nav" aria-label="ตัวช่วยดูผังบนมือถือ">
+    <section class="tent-mobile-zone-nav" aria-label="ตัวช่วยดูผังการจองเต็นท์">
       <div class="tent-mobile-zone-copy">
-        <p class="section-kicker">Mobile View</p>
-        <strong>เลือกโซนหรือปัดซ้ายขวาเพื่อดูผังให้ชัดขึ้น</strong>
+        <p class="section-kicker">Zone Navigator</p>
+        <strong>โฟกัสโซนที่ต้องการก่อน แล้วค่อยแตะเต็นท์เพื่อแก้ไขการจอง</strong>
+        <p>กดปุ่มโซนเพื่อเลื่อนไปยังตำแหน่งนั้นในผังทันที และดูจำนวนที่จองแล้วหรือยังว่างได้จากการ์ดแต่ละโซน</p>
       </div>
       <div class="tent-mobile-zone-list" role="tablist" aria-label="เลือกตำแหน่งในผัง">
         ${MOBILE_ZONE_BUTTONS.map((zone) => {
           const isActive = state.mobileFocusZone === zone.code;
+          const stats = getZoneStats(zone.code);
           return `
             <button
               class="tent-mobile-zone-button${isActive ? " is-active" : ""}"
@@ -553,11 +563,57 @@ function renderMobileZoneNav() {
               data-zone="${zone.code}"
               aria-pressed="${isActive}"
             >
-              ${zone.label}
+              <span class="tent-mobile-zone-button-label">${zone.label}</span>
+              <strong>${buildZoneHeadline(zone.code, stats)}</strong>
+              <small>${buildZoneMeta(zone.code, stats)}</small>
             </button>
           `;
         }).join("")}
       </div>
+    </section>
+  `;
+}
+
+function renderSelectionSpotlight() {
+  const selectedSlot = getSelectedSlot();
+
+  if (!selectedSlot) {
+    return `
+      <section class="tent-selection-spotlight is-empty">
+        <p class="section-kicker">Quick Start</p>
+        <h3>เริ่มจากเลือกเต็นท์บนผัง</h3>
+        <p>
+          ใช้ปุ่มโซนด้านบนเพื่อเลื่อนไปยังบริเวณที่ต้องการ แล้วแตะช่องเต็นท์เพื่อเปิดแผงเลือกทีมได้ทันที
+        </p>
+      </section>
+    `;
+  }
+
+  const registration = getRegistrationById(selectedSlot.registrationId);
+  const isBooked = Boolean(selectedSlot.registrationId);
+
+  return `
+    <section class="tent-selection-spotlight" data-booked="${isBooked}">
+      <p class="section-kicker">Selected Tent</p>
+      <div class="tent-selection-spotlight-header">
+        <div>
+          <h3>${escapeHtml(selectedSlot.label)}</h3>
+          <p>ZONE ${escapeHtml(selectedSlot.zone)}</p>
+        </div>
+        <span class="tent-selection-pill ${isBooked ? "is-booked" : "is-open"}">
+          ${isBooked ? "จองแล้ว" : "ยังว่าง"}
+        </span>
+      </div>
+      <strong class="tent-selection-team">
+        ${escapeHtml(registration?.applicantName || "ยังไม่มีทีมเลือกช่องนี้")}
+      </strong>
+      <p class="tent-selection-meta">
+        ${
+          registration
+            ? escapeHtml(buildRegistrationMeta(registration))
+            : "เลือกทีมจาก dropdown ในแผงด้านล่างเพื่อบันทึกการจองได้เลย"
+        }
+      </p>
     </section>
   `;
 }
@@ -636,7 +692,7 @@ function renderEditorCard() {
         ${
           isBookable
             ? "คลิกช่องอื่นบนผังเพื่อสลับเต็นท์ที่ต้องการจัดการ"
-            : "โซน B ทั้งหมด และ D1, D2 ถูกล็อกไม่ให้จองตามผังงาน"
+            : "โซน A และโซน B ทั้งหมดถูกล็อกไม่ให้จองตามผังงาน"
         }
       </div>
     </section>
@@ -654,36 +710,49 @@ function renderVenueMapBoard() {
           role="img"
           preserveAspectRatio="xMidYMid meet"
         >
+          <defs>
+            <pattern id="venue-grid-pattern" width="54" height="56" patternUnits="userSpaceOnUse">
+              <path d="M 54 0 L 0 0 0 56" class="venue-svg-grid-line"></path>
+            </pattern>
+          </defs>
           <rect x="0.5" y="0.5" width="1834" height="1165" class="venue-svg-paper"></rect>
+          <rect x="0.5" y="0.5" width="1834" height="1165" class="venue-svg-grid"></rect>
 
           <line x1="42" y1="0" x2="42" y2="1166" class="venue-svg-line"></line>
           <line x1="150" y1="0" x2="150" y2="1166" class="venue-svg-line"></line>
           <line x1="205" y1="0" x2="205" y2="1166" class="venue-svg-line"></line>
 
-          <text x="21" y="317" class="venue-svg-gate" transform="rotate(-90 21 317)">ประตูงาน</text>
-          <text x="21" y="877" class="venue-svg-gate" transform="rotate(-90 21 877)">ประตูงาน</text>
+          <text x="21" y="316" class="venue-svg-gate" transform="rotate(-90 21 316)">ประตูแรก</text>
+          <text x="21" y="876" class="venue-svg-gate" transform="rotate(-90 21 876)">ประตูสอง</text>
 
-          <text x="500" y="214" class="venue-svg-zone-label">ZONE A</text>
-          <text x="145" y="270" class="venue-svg-zone-label">ZONE B</text>
-          <text x="1392" y="270" class="venue-svg-zone-label venue-svg-zone-label--dark">ZONE C</text>
-          <text x="92" y="877" class="venue-svg-zone-label">ZONE D</text>
+          <rect x="99" y="7" width="330" height="111" class="venue-svg-support"></rect>
+          <text x="264" y="63" class="venue-svg-support-label" text-anchor="middle">
+            เต็นท์เก็บรถเพื่อตรวจสภาพ
+          </text>
+
+          <text x="1470" y="102" class="venue-svg-parking-label" text-anchor="middle">ลานจอดรถ</text>
+
+          <text x="231" y="206" class="venue-svg-zone-label">ZONE A</text>
+          <text x="146" y="264" class="venue-svg-zone-label">ZONE B</text>
+          <text x="1415" y="264" class="venue-svg-zone-label venue-svg-zone-label--dark">ZONE C</text>
+          <text x="95" y="878" class="venue-svg-zone-label">ZONE D</text>
 
           ${renderZoneSlots("A")}
 
-          <rect x="41" y="294" width="273" height="110" class="venue-svg-support"></rect>
-          <text x="177.5" y="349" class="venue-svg-vertical-text" transform="rotate(-90 177.5 349)">
+          <rect x="45" y="285" width="269" height="114" class="venue-svg-support"></rect>
+          <text x="179.5" y="347" class="venue-svg-support-label" text-anchor="middle">
             ตรวจสภาพ
           </text>
 
           ${renderZoneSlots("B")}
 
           <g class="venue-svg-service-strip">
-            <rect x="41" y="515" width="109" height="53" class="venue-svg-service-cell"></rect>
-            <rect x="150" y="515" width="55" height="53" class="venue-svg-service-cell"></rect>
-            <rect x="205" y="515" width="109" height="53" class="venue-svg-service-cell"></rect>
+            <rect x="45" y="509" width="105" height="58" class="venue-svg-service-cell"></rect>
+            <rect x="150" y="509" width="55" height="58" class="venue-svg-service-cell"></rect>
+            <rect x="205" y="509" width="109" height="58" class="venue-svg-service-cell"></rect>
             <text
-              x="95.5"
-              y="549"
+              x="97.5"
+              y="545"
               class="venue-svg-service-label"
               text-anchor="middle"
             >
@@ -691,7 +760,7 @@ function renderVenueMapBoard() {
             </text>
             <text
               x="177.5"
-              y="549"
+              y="545"
               class="venue-svg-service-label"
               text-anchor="middle"
             >
@@ -699,7 +768,7 @@ function renderVenueMapBoard() {
             </text>
             <text
               x="259.5"
-              y="549"
+              y="545"
               class="venue-svg-service-label"
               text-anchor="middle"
             >
@@ -709,24 +778,25 @@ function renderVenueMapBoard() {
 
           ${renderZoneSlots("C")}
 
-          <rect x="150" y="569" width="55" height="221" class="venue-svg-track-start"></rect>
-          <text x="177.5" y="681" class="venue-svg-track-start-label" transform="rotate(-90 177.5 681)">
+          <rect x="150" y="566" width="55" height="224" class="venue-svg-track-start"></rect>
+          <text x="177.5" y="678" class="venue-svg-track-start-label" transform="rotate(-90 177.5 678)">
             จุดสตาร์ท
           </text>
 
           <g class="venue-svg-track-board">
-            <rect x="205" y="569" width="1630" height="221" class="venue-svg-track"></rect>
-            <line x1="205" y1="679.5" x2="1835" y2="679.5" class="venue-svg-line"></line>
-            <text x="286" y="636" class="venue-svg-track-label">TRACK A</text>
-            <text x="286" y="737" class="venue-svg-track-label">TRACK B</text>
+            <rect x="205" y="566" width="1630" height="224" class="venue-svg-track"></rect>
+            <line x1="205" y1="678" x2="1835" y2="678" class="venue-svg-line"></line>
+            <text x="290" y="632" class="venue-svg-track-label">TRACK A</text>
+            <text x="290" y="741" class="venue-svg-track-label">TRACK B</text>
+            <text x="1018" y="636" class="venue-svg-event-title" text-anchor="middle">
+              งานแข่งไฮสปีด บิดหมดปลอก
+            </text>
+            <text x="1018" y="742" class="venue-svg-event-subtitle" text-anchor="middle">
+              สนามบ้านฉางเรซซิ่ง ระยอง
+            </text>
           </g>
 
           ${renderZoneSlots("D")}
-
-          <rect x="205" y="901" width="109" height="110" class="venue-svg-support"></rect>
-          <text x="259.5" y="963" class="venue-svg-merch-label" text-anchor="middle">ขายเสื้อ</text>
-
-          ${renderDecorativeStalls()}
         </svg>
       </div>
     </div>
@@ -750,8 +820,13 @@ function renderMap() {
   elements.tentMap.innerHTML = `
     ${renderMobileZoneNav()}
     <div class="venue-map-workspace">
-      ${renderVenueMapBoard()}
-      ${renderEditorCard()}
+      <div class="venue-map-column">
+        ${renderVenueMapBoard()}
+      </div>
+      <aside class="venue-editor-rail" aria-label="แผงจัดการเต็นท์">
+        ${renderSelectionSpotlight()}
+        ${renderEditorCard()}
+      </aside>
     </div>
   `;
 
@@ -868,6 +943,14 @@ function handleSlotClick(target) {
 
   state.selectedSlotId = slotId;
   renderPage();
+
+  if (isCompactViewport()) {
+    window.requestAnimationFrame(() => {
+      elements.tentMap
+        ?.querySelector(".venue-editor-rail")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
 }
 
 function handleEditorSelection(target) {
@@ -902,10 +985,6 @@ function handlePrint() {
 }
 
 function scrollMobileMapToZone(zoneCode, behavior = "auto") {
-  if (!isCompactViewport()) {
-    return;
-  }
-
   const scroller = elements.tentMap?.querySelector(".venue-map-scroller");
   const board = elements.tentMap?.querySelector(".venue-map-board");
   const focusView = MOBILE_ZONE_VIEWS[zoneCode] || MOBILE_ZONE_VIEWS.ALL;

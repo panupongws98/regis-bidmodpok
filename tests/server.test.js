@@ -185,8 +185,8 @@ async function run() {
     assert.equal(tentBookingsResult.response.status, 200);
     assert.ok(Array.isArray(tentBookingsResult.body.slots));
     assert.equal(tentBookingsResult.body.totalSlots, 64);
-    assert.equal(tentBookingsResult.body.unavailableSlots, 7);
-    assert.equal(tentBookingsResult.body.bookableSlots, 57);
+    assert.equal(tentBookingsResult.body.unavailableSlots, 11);
+    assert.equal(tentBookingsResult.body.bookableSlots, 53);
     const initialBookedSlots = tentBookingsResult.body.bookedSlots;
     const emptyTentSlotId = tentBookingsResult.body.slots.find((slot) => {
       return slot.isBookable && !slot.registrationId;
@@ -194,7 +194,11 @@ async function run() {
     assert.ok(emptyTentSlotId, "expected at least one empty tent slot in the fixture");
     assert.equal(
       tentBookingsResult.body.bookedSlots + tentBookingsResult.body.availableSlots,
-      57,
+      53,
+    );
+    assert.equal(
+      tentBookingsResult.body.slots.find((slot) => slot.id === "1A")?.isBookable,
+      false,
     );
     assert.equal(
       tentBookingsResult.body.slots.find((slot) => slot.id === "1B")?.isBookable,
@@ -202,7 +206,7 @@ async function run() {
     );
     assert.equal(
       tentBookingsResult.body.slots.find((slot) => slot.id === "1D")?.isBookable,
-      false,
+      true,
     );
 
     const createdClassName = `Smoke Class ${Date.now()}`;

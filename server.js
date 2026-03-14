@@ -46,9 +46,8 @@ const TENT_SLOT_MAP = new Map(
   TENT_SLOTS.map((slot) => [slot.id.toLowerCase(), slot]),
 );
 const UNAVAILABLE_TENT_SLOT_IDS = new Set(
-  TENT_SLOTS.filter((slot) => slot.zone === "B")
-    .map((slot) => slot.id.toLowerCase())
-    .concat(["1d", "2d"]),
+  TENT_SLOTS.filter((slot) => slot.zone === "A" || slot.zone === "B")
+    .map((slot) => slot.id.toLowerCase()),
 );
 
 const CONTENT_TYPES = {
