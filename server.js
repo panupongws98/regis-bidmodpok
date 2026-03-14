@@ -502,6 +502,54 @@ function validateRegistrationEntry(payload, classes, selectedClasses) {
   };
 }
 
+function getBikeNumberWarnings(entries, registrations, currentId = null) {
+  const requestedNumbers = new Map();
+  for (const entry of entries) {
+    for (const bikeNumber of entry.bikeNumbers || []) {
+      const normalizedBikeNumber = normalizeText(bikeNumber);
+      if (!normalizedBikeNumber || requestedNumbers.has(normalizedBikeNumber)) {
+        continue;
+      }
+
+      requestedNumbers.set(normalizedBikeNumber, sanitizeText(bikeNumber));
+    }
+  }
+
+  if (requestedNumbers.size === 0) {
+    return [];
+  }
+
+  const warningMap = new Map();
+  for (const registration of registrations) {
+    if (registration.id === currentId) {
+      continue;
+    }
+
+    const applicantName = sanitizeText(registration.applicantName) || "ทีมไม่ระบุชื่อ";
+    for (const entry of registration.entries || []) {
+      for (const bikeNumber of entry.bikeNumbers || []) {
+        const normalizedBikeNumber = normalizeText(bikeNumber);
+        if (!requestedNumbers.has(normalizedBikeNumber)) {
+          continue;
+        }
+
+        const currentWarning = warningMap.get(normalizedBikeNumber) || {
+          bikeNumber: requestedNumbers.get(normalizedBikeNumber) || sanitizeText(bikeNumber),
+          applicantNames: [],
+        };
+        if (!currentWarning.applicantNames.includes(applicantName)) {
+          currentWarning.applicantNames.push(applicantName);
+        }
+        warningMap.set(normalizedBikeNumber, currentWarning);
+      }
+    }
+  }
+
+  return [...warningMap.values()].sort((left, right) => {
+    return left.bikeNumber.localeCompare(right.bikeNumber, "th");
+  });
+}
+
 function validateRegistration(payload, classes, registrations, currentId = null) {
   const applicantName = sanitizeText(payload.applicantName);
   const address = sanitizeText(payload.address);
@@ -528,33 +576,6 @@ function validateRegistration(payload, classes, registrations, currentId = null)
   const entries = rawEntries.map((entry) => {
     return validateRegistrationEntry(entry, classes, selectedClasses);
   });
-  const bikeNumberSet = new Set();
-  for (const entry of entries) {
-    for (const bikeNumber of entry.bikeNumbers) {
-      bikeNumberSet.add(bikeNumber.toLowerCase());
-    }
-  }
-
-  const conflictingNumbers = [];
-  for (const registration of registrations) {
-    if (registration.id === currentId) {
-      continue;
-    }
-
-    for (const entry of registration.entries || []) {
-      for (const bikeNumber of entry.bikeNumbers || []) {
-        if (bikeNumberSet.has(String(bikeNumber).trim().toLowerCase())) {
-          conflictingNumbers.push(bikeNumber);
-        }
-      }
-    }
-  }
-
-  if (conflictingNumbers.length > 0) {
-    throw new Error(
-      `หมายเลขรถซ้ำกับข้อมูลเดิม: ${uniqueStrings(conflictingNumbers).join(", ")}`,
-    );
-  }
 
   return {
     applicantName,
@@ -826,6 +847,10 @@ async function handleApi(request, response, url) {
 
     try {
       const registration = validateRegistration(body, classes, registrations);
+      const bikeNumberWarnings = getBikeNumberWarnings(
+        registration.entries,
+        registrations,
+      );
       const now = new Date().toISOString();
       const createdRegistration = {
         id: randomUUID(),
@@ -836,7 +861,10 @@ async function handleApi(request, response, url) {
 
       registrations.push(createdRegistration);
       await saveRegistrations(registrations);
-      return sendJson(response, 201, { registration: createdRegistration });
+      return sendJson(response, 201, {
+        registration: createdRegistration,
+        bikeNumberWarnings,
+      });
     } catch (error) {
       return sendError(response, 400, error.message);
     }
@@ -885,6 +913,11 @@ async function handleApi(request, response, url) {
         registrations,
         registrationId,
       );
+      const bikeNumberWarnings = getBikeNumberWarnings(
+        registration.entries,
+        registrations,
+        registrationId,
+      );
       const updatedRegistration = {
         ...registrations[index],
         ...registration,
@@ -893,7 +926,10 @@ async function handleApi(request, response, url) {
 
       registrations[index] = updatedRegistration;
       await saveRegistrations(registrations);
-      return sendJson(response, 200, { registration: updatedRegistration });
+      return sendJson(response, 200, {
+        registration: updatedRegistration,
+        bikeNumberWarnings,
+      });
     } catch (error) {
       return sendError(response, 400, error.message);
     }

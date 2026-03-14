@@ -310,8 +310,12 @@ async function run() {
         ],
       }),
     });
-    assert.equal(result.response.status, 400);
-    assert.match(result.body.error, /หมายเลขรถซ้ำกับข้อมูลเดิม/);
+    assert.equal(result.response.status, 201);
+    assert.equal(result.body.registration.applicantName, "Duplicate Bike Number Team");
+    assert.equal(result.body.registration.entries[0].bikeNumbers[0], updatedBikeNumber);
+    assert.ok(Array.isArray(result.body.bikeNumberWarnings));
+    assert.equal(result.body.bikeNumberWarnings[0].bikeNumber, updatedBikeNumber);
+    assert.ok(result.body.bikeNumberWarnings[0].applicantNames.includes(createPayload.applicantName));
 
     result = await requestJson(baseUrl, "/api/registrations", {
       method: "POST",

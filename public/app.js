@@ -466,6 +466,87 @@ function getRegistrationTotalVehicleCount(registration) {
   }, 0);
 }
 
+function buildBikeNumberRegistry(excludeRegistrationId = state.editingId) {
+  const registry = new Map();
+
+  for (const registration of state.registrations) {
+    if (registration.id === excludeRegistrationId) {
+      continue;
+    }
+
+    const applicantName = String(registration.applicantName || "").trim() || "ทีมไม่ระบุชื่อ";
+    for (const bikeNumber of getRegistrationAllBikeNumbers(registration)) {
+      const normalizedBikeNumber = normalizeText(bikeNumber);
+      if (!normalizedBikeNumber) {
+        continue;
+      }
+
+      const existingWarning = registry.get(normalizedBikeNumber) || {
+        bikeNumber: bikeNumber.trim(),
+        applicantNames: [],
+      };
+      if (!existingWarning.applicantNames.includes(applicantName)) {
+        existingWarning.applicantNames.push(applicantName);
+      }
+      registry.set(normalizedBikeNumber, existingWarning);
+    }
+  }
+
+  return registry;
+}
+
+function getDuplicateBikeNumberWarnings(entries, options = {}) {
+  const registry = buildBikeNumberRegistry(options.excludeRegistrationId);
+
+  return entries.map((entry) => {
+    const warnings = [];
+    const seenBikeNumbers = new Set();
+
+    for (const bikeNumber of entry.bikeNumbers || []) {
+      const normalizedBikeNumber = normalizeText(bikeNumber);
+      if (!normalizedBikeNumber || seenBikeNumbers.has(normalizedBikeNumber)) {
+        continue;
+      }
+
+      const warning = registry.get(normalizedBikeNumber);
+      if (!warning) {
+        continue;
+      }
+
+      warnings.push({
+        bikeNumber: bikeNumber.trim() || warning.bikeNumber,
+        applicantNames: [...warning.applicantNames],
+      });
+      seenBikeNumbers.add(normalizedBikeNumber);
+    }
+
+    return warnings;
+  });
+}
+
+function formatBikeNumberWarnings(warnings, maxItems = 3) {
+  if (!Array.isArray(warnings) || warnings.length === 0) {
+    return "";
+  }
+
+  const visibleWarnings = warnings.slice(0, maxItems).map((warning) => {
+    const visibleApplicantNames = warning.applicantNames
+      .slice(0, 2)
+      .map((name) => shortenText(name, 28));
+    const extraApplicantCount = Math.max(0, warning.applicantNames.length - visibleApplicantNames.length);
+    const applicantLabel = visibleApplicantNames.length > 0
+      ? `${visibleApplicantNames.join(", ")}${extraApplicantCount > 0 ? ` และอีก ${extraApplicantCount} ทีม` : ""}`
+      : "";
+
+    return applicantLabel
+      ? `${warning.bikeNumber} (${applicantLabel})`
+      : warning.bikeNumber;
+  });
+
+  const extraWarningCount = Math.max(0, warnings.length - visibleWarnings.length);
+  return `${visibleWarnings.join(", ")}${extraWarningCount > 0 ? ` และอีก ${extraWarningCount} เลข` : ""}`;
+}
+
 function shortenText(value, maxLength) {
   const text = String(value || "").trim();
   if (text.length <= maxLength) {
@@ -787,9 +868,21 @@ function renderClassEntries(entries = [createEmptyRegistrationEntry()]) {
 
   const normalizedEntries = (entries.length > 0 ? entries : [createEmptyRegistrationEntry()])
     .map((entry) => normalizeDraftRegistrationEntry(entry));
+  const duplicateBikeNumberWarnings = getDuplicateBikeNumberWarnings(normalizedEntries);
 
   elements.classEntriesContainer.innerHTML = normalizedEntries
     .map((entry, index) => {
+      const entryWarnings = duplicateBikeNumberWarnings[index] || [];
+      const warningSummary = formatBikeNumberWarnings(entryWarnings, 4);
+      const warningMarkup = entryWarnings.length > 0
+        ? `
+          <div class="duplicate-number-warning" role="note">
+            <strong>เตือน: เลขรถซ้ำกับทีมอื่น แต่ยังบันทึกได้</strong>
+            <span>พบเลขซ้ำ: ${escapeHtml(warningSummary)}</span>
+          </div>
+        `
+        : "";
+
       return `
         <section class="class-entry-card" data-entry-index="${index}">
           <div class="class-entry-card-header">
@@ -832,11 +925,12 @@ function renderClassEntries(entries = [createEmptyRegistrationEntry()]) {
           <div class="field">
             <div class="field-heading">
               <span>หมายเลขรถของรุ่นนี้</span>
-              <small>ระบบจะช่วยเช็กเลขรถซ้ำข้ามทีมให้อัตโนมัติ</small>
+              <small>ระบบจะแจ้งเตือนถ้าเลขรถซ้ำกับทีมอื่น แต่ยังบันทึกได้</small>
             </div>
             <div class="bike-grid class-entry-bike-grid">
               ${renderClassEntryBikeInputs(entry, index)}
             </div>
+            ${warningMarkup}
           </div>
         </section>
       `;
@@ -3472,7 +3566,7 @@ async function handleSubmit(event) {
   const method = state.editingId ? "PUT" : "POST";
 
   try {
-    await api(path, {
+    const result = await api(path, {
       method,
       body: JSON.stringify(payload),
     });
@@ -3483,6 +3577,14 @@ async function handleSubmit(event) {
       ? "อัปเดตข้อมูลผู้สมัครเรียบร้อยแล้ว"
       : "บันทึกข้อมูลผู้สมัครเรียบร้อยแล้ว";
     resetForm();
+    if (Array.isArray(result.bikeNumberWarnings) && result.bikeNumberWarnings.length > 0) {
+      setStatus(
+        `${message} | เตือนเลขรถซ้ำกับทีมอื่น: ${formatBikeNumberWarnings(result.bikeNumberWarnings, 3)}`,
+        "warning",
+      );
+      return;
+    }
+
     setStatus(message);
   } catch (error) {
     setStatus(error.message, "danger");
@@ -3613,7 +3715,7 @@ function bindEvents() {
     renderClassEntries(entries);
   });
   bindIfPresent(elements.classEntriesContainer, "change", (event) => {
-    const target = event.target.closest("[data-entry-field='vehicleCount']");
+    const target = event.target.closest("[data-entry-field]");
     if (!target) {
       return;
     }
@@ -3621,6 +3723,15 @@ function bindEvents() {
     const entryCard = target.closest("[data-entry-index]");
     const entryIndex = Number.parseInt(entryCard?.dataset.entryIndex, 10);
     if (!Number.isInteger(entryIndex)) {
+      return;
+    }
+
+    if (target.dataset.entryField === "bikeNumber") {
+      renderClassEntries(collectRegistrationEntries());
+      return;
+    }
+
+    if (target.dataset.entryField !== "vehicleCount") {
       return;
     }
 
