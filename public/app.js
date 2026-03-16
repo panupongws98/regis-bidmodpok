@@ -1,5 +1,6 @@
 ﻿const PRINT_COLUMNS_STORAGE_KEY = "drag-bike-print-columns";
 const BRACKET_SELECTIONS_STORAGE_KEY = "drag-bike-bracket-selections-v1";
+const TIMING_SHEET_STORAGE_KEY = "drag-bike-timing-sheet-v1";
 const EVENT_BRAND = {
   name: "งานแข่งรถไฮสปีด บิดหมดปลอก",
   subtitle: "ณ สนามแข่งรถบ้านฉางเรสซิ่ง จ.ระยอง",
@@ -189,6 +190,31 @@ function saveBracketSelectionsPreference() {
   }
 }
 
+function loadTimingSheetEntriesPreference() {
+  try {
+    const rawValue = window.localStorage.getItem(TIMING_SHEET_STORAGE_KEY);
+    if (!rawValue) {
+      return {};
+    }
+
+    const parsed = JSON.parse(rawValue);
+    return sanitizeTimingSheetEntriesPreference(parsed);
+  } catch {
+    return {};
+  }
+}
+
+function saveTimingSheetEntriesPreference() {
+  try {
+    window.localStorage.setItem(
+      TIMING_SHEET_STORAGE_KEY,
+      JSON.stringify(state.timingSheetEntries),
+    );
+  } catch {
+    // Ignore storage failures and keep the UI usable.
+  }
+}
+
 const state = {
   classes: [],
   registrations: [],
@@ -201,6 +227,7 @@ const state = {
   selectedBlankBracketSize: "16",
   selectedSummaryTemplate: DEFAULT_SUMMARY_TEMPLATE_ID,
   bracketSelections: loadBracketSelectionsPreference(),
+  timingSheetEntries: loadTimingSheetEntriesPreference(),
 };
 
 const elements = {
@@ -1299,6 +1326,8 @@ function getBikeEntriesForClass(className) {
 
     return bikeNumbers.map((bikeNumber, index) => {
       return {
+        id: `${registration.id}-bike-${index + 1}`,
+        entryId: registration.id,
         applicantName: registration.applicantName,
         bikeNumber,
         registrationId: registration.registrationId,
@@ -1307,6 +1336,272 @@ function getBikeEntriesForClass(className) {
       };
     });
   });
+}
+
+function sanitizeTimingNumericSegment(value) {
+  const sanitized = String(value || "").replace(/[^0-9.]/g, "");
+  if (!sanitized) {
+    return "";
+  }
+
+  const [whole, ...fraction] = sanitized.split(".");
+  return fraction.length > 0 ? `${whole}.${fraction.join("")}` : whole;
+}
+
+function sanitizeTimingInputValue(value) {
+  const rawValue = String(value || "").trim().replaceAll(",", ".");
+  if (!rawValue) {
+    return "";
+  }
+
+  if (rawValue.includes(":")) {
+    const [minutesRaw, ...secondsParts] = rawValue.split(":");
+    const minutes = minutesRaw.replace(/\D/g, "");
+    const seconds = sanitizeTimingNumericSegment(secondsParts.join(""));
+
+    if (!minutes && !seconds) {
+      return "";
+    }
+
+    return seconds ? `${minutes || "0"}:${seconds}` : `${minutes}:`;
+  }
+
+  return sanitizeTimingNumericSegment(rawValue);
+}
+
+function sanitizeTimingSheetEntriesPreference(input) {
+  if (!input || typeof input !== "object") {
+    return {};
+  }
+
+  const sanitized = {};
+  for (const [classKey, classEntries] of Object.entries(input)) {
+    if (!classEntries || typeof classEntries !== "object") {
+      continue;
+    }
+
+    const nextEntries = {};
+    for (const [entryId, entryValues] of Object.entries(classEntries)) {
+      if (!entryValues || typeof entryValues !== "object") {
+        continue;
+      }
+
+      const round1 = sanitizeTimingInputValue(entryValues.round1);
+      const round2 = sanitizeTimingInputValue(entryValues.round2);
+      if (!round1 && !round2) {
+        continue;
+      }
+
+      nextEntries[entryId] = { round1, round2 };
+    }
+
+    if (Object.keys(nextEntries).length > 0) {
+      sanitized[classKey] = nextEntries;
+    }
+  }
+
+  return sanitized;
+}
+
+function getTimingSheetClassKey(className) {
+  return normalizeText(className);
+}
+
+function getTimingSheetEntryValues(className, entryId) {
+  const classKey = getTimingSheetClassKey(className);
+  const entryValues = state.timingSheetEntries[classKey]?.[entryId];
+
+  return {
+    round1: entryValues?.round1 || "",
+    round2: entryValues?.round2 || "",
+  };
+}
+
+function setTimingSheetEntryValue(className, entryId, field, value) {
+  if (!className || !entryId || !["round1", "round2"].includes(field)) {
+    return;
+  }
+
+  const classKey = getTimingSheetClassKey(className);
+  const sanitizedValue = sanitizeTimingInputValue(value);
+  const nextState = {
+    ...state.timingSheetEntries,
+    [classKey]: {
+      ...(state.timingSheetEntries[classKey] || {}),
+      [entryId]: {
+        ...getTimingSheetEntryValues(className, entryId),
+        [field]: sanitizedValue,
+      },
+    },
+  };
+
+  const nextEntry = nextState[classKey]?.[entryId];
+  if (nextEntry && !nextEntry.round1 && !nextEntry.round2) {
+    delete nextState[classKey][entryId];
+  }
+
+  if (nextState[classKey] && Object.keys(nextState[classKey]).length === 0) {
+    delete nextState[classKey];
+  }
+
+  state.timingSheetEntries = nextState;
+  saveTimingSheetEntriesPreference();
+}
+
+function parseTimingValue(value) {
+  const sanitizedValue = sanitizeTimingInputValue(value);
+  if (!sanitizedValue) {
+    return null;
+  }
+
+  if (/^\d+:\d+(?:\.\d+)?$/.test(sanitizedValue)) {
+    const [minutesPart, secondsPart] = sanitizedValue.split(":");
+    const minutes = Number.parseInt(minutesPart, 10);
+    const seconds = Number.parseFloat(secondsPart);
+    if (Number.isFinite(minutes) && Number.isFinite(seconds)) {
+      return (minutes * 60) + seconds;
+    }
+
+    return null;
+  }
+
+  const parsed = Number.parseFloat(sanitizedValue);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function getBestTimingValue(round1, round2) {
+  const candidates = [
+    { value: round1, numeric: parseTimingValue(round1) },
+    { value: round2, numeric: parseTimingValue(round2) },
+  ].filter((item) => item.numeric !== null);
+
+  if (candidates.length === 0) {
+    return {
+      displayValue: "",
+      numericValue: null,
+    };
+  }
+
+  const bestCandidate = candidates.reduce((best, current) => {
+    return current.numeric < best.numeric ? current : best;
+  });
+
+  return {
+    displayValue: bestCandidate.value,
+    numericValue: bestCandidate.numeric,
+  };
+}
+
+function getTimingSheetRows(className) {
+  const rows = getBikeEntriesForClass(className).map((entry) => {
+    const timingValues = getTimingSheetEntryValues(className, entry.id);
+    const round1Numeric = parseTimingValue(timingValues.round1);
+    const round2Numeric = parseTimingValue(timingValues.round2);
+    const bestTiming = getBestTimingValue(timingValues.round1, timingValues.round2);
+
+    return {
+      ...entry,
+      round1: timingValues.round1,
+      round2: timingValues.round2,
+      round1Numeric,
+      round2Numeric,
+      bestTime: bestTiming.displayValue,
+      bestTimeNumeric: bestTiming.numericValue,
+      rank: "",
+    };
+  });
+
+  const hasCompleteRankingData = rows.length > 0 && rows.every((row) => {
+    return row.round1Numeric !== null && row.round2Numeric !== null;
+  });
+  if (!hasCompleteRankingData) {
+    return rows;
+  }
+
+  const rankedRows = [...rows].sort((left, right) => {
+    if (left.bestTimeNumeric !== right.bestTimeNumeric) {
+      return left.bestTimeNumeric - right.bestTimeNumeric;
+    }
+
+    const applicantComparison = String(left.applicantName || "").localeCompare(String(right.applicantName || ""), "th");
+    if (applicantComparison !== 0) {
+      return applicantComparison;
+    }
+
+    return String(left.bikeNumber || "").localeCompare(String(right.bikeNumber || ""), "th");
+  });
+
+  let previousBestTime = null;
+  let previousRank = 0;
+  const rankMap = new Map();
+
+  rankedRows.forEach((row, index) => {
+    const isSameTime = previousBestTime !== null && Math.abs(row.bestTimeNumeric - previousBestTime) < 0.000001;
+    const nextRank = isSameTime ? previousRank : index + 1;
+    rankMap.set(row.id, String(nextRank));
+    previousBestTime = row.bestTimeNumeric;
+    previousRank = nextRank;
+  });
+
+  return rows.map((row) => {
+    return {
+      ...row,
+      rank: rankMap.get(row.id) || "",
+    };
+  });
+}
+
+function updateTimingSheetPreviewComputedFields() {
+  if (
+    !hasElement("summaryPreview") ||
+    !state.selectedSummaryClass ||
+    state.selectedSummaryTemplate !== "timing-sheet"
+  ) {
+    return;
+  }
+
+  const timingRows = getTimingSheetRows(state.selectedSummaryClass);
+  const timingRowMap = new Map(timingRows.map((row) => [row.id, row]));
+  const previewRows = elements.summaryPreview.querySelectorAll("[data-timing-entry-id]");
+
+  previewRows.forEach((previewRow) => {
+    const entryId = previewRow.dataset.timingEntryId;
+    const rowData = timingRowMap.get(entryId);
+    if (!rowData) {
+      return;
+    }
+
+    const bestTimeTarget = previewRow.querySelector("[data-role='timing-best']");
+    if (bestTimeTarget) {
+      bestTimeTarget.textContent = rowData.bestTime;
+    }
+
+    const rankTarget = previewRow.querySelector("[data-role='timing-rank']");
+    if (rankTarget) {
+      rankTarget.textContent = rowData.rank;
+    }
+  });
+}
+
+function handleTimingSheetInput(target) {
+  if (!(target instanceof HTMLInputElement) || !state.selectedSummaryClass) {
+    return false;
+  }
+
+  const entryId = target.dataset.entryId;
+  const field = target.dataset.field === "round2" ? "round2" : "round1";
+  if (!entryId) {
+    return false;
+  }
+
+  const sanitizedValue = sanitizeTimingInputValue(target.value);
+  if (target.value !== sanitizedValue) {
+    target.value = sanitizedValue;
+  }
+
+  setTimingSheetEntryValue(state.selectedSummaryClass, entryId, field, sanitizedValue);
+  updateTimingSheetPreviewComputedFields();
+  return true;
 }
 
 function getSummaryTemplate(templateId) {
@@ -1571,28 +1866,139 @@ function buildVehicleSummary(className, options = {}) {
   );
 }
 
-function buildTimingSummary(className, options = {}) {
-  const { blank = false } = options;
-  const rows = blank ? [] : getBikeEntriesForClass(className).map((entry) => {
-    return [entry.applicantName || "", entry.bikeNumber || "", "", "", "", ""];
-  });
+function buildTimingSummaryRow(row, options = {}) {
+  const { interactive = false } = options;
+  const bestTimeCell = `
+    <span class="summary-sheet-time-derived" data-role="timing-best">${escapeHtml(row.bestTime || "")}</span>
+  `;
+  const rankCell = `
+    <span class="summary-sheet-rank-derived" data-role="timing-rank">${escapeHtml(row.rank || "")}</span>
+  `;
+  const round1Cell = interactive
+    ? `
+      <input
+        class="summary-sheet-time-input"
+        type="text"
+        inputmode="decimal"
+        autocomplete="off"
+        spellcheck="false"
+        data-action="timing-input"
+        data-entry-id="${escapeHtml(row.id)}"
+        data-field="round1"
+        value="${escapeHtml(row.round1 || "")}"
+      />
+    `
+    : escapeHtml(row.round1 || "");
+  const round2Cell = interactive
+    ? `
+      <input
+        class="summary-sheet-time-input"
+        type="text"
+        inputmode="decimal"
+        autocomplete="off"
+        spellcheck="false"
+        data-action="timing-input"
+        data-entry-id="${escapeHtml(row.id)}"
+        data-field="round2"
+        value="${escapeHtml(row.round2 || "")}"
+      />
+    `
+    : escapeHtml(row.round2 || "");
 
-  return buildSummaryTable(
-    [
-      { header: "ชื่อทีมแข่ง", width: "40%" },
-      { header: "หมายเลขรถ", width: "12%" },
-      { header: "เวลารอบที่ 1", width: "12%" },
-      { header: "เวลารอบที่ 2", width: "12%" },
-      { header: "เวลาที่ดีที่สุด", width: "14%" },
-      { header: "อันดับ", width: "10%" },
-    ],
-    rows,
-    SUMMARY_MINIMUM_ROWS["timing-sheet"],
-    className,
-    "summary-sheet-timing",
-    SUMMARY_ROWS_PER_PAGE["timing-sheet"],
-    blank ? { inlineNoteText: "แบบเปล่าสำหรับเขียนหน้างาน" } : {},
-  );
+  return `
+    <tr data-timing-entry-id="${escapeHtml(row.id)}">
+      <td>${escapeHtml(row.applicantName || "")}</td>
+      <td>${escapeHtml(row.bikeNumber || "")}</td>
+      <td class="summary-sheet-time-cell">${round1Cell}</td>
+      <td class="summary-sheet-time-cell">${round2Cell}</td>
+      <td class="summary-sheet-derived-cell">${bestTimeCell}</td>
+      <td class="summary-sheet-rank-cell">${rankCell}</td>
+    </tr>
+  `;
+}
+
+function buildEmptyTimingSummaryRow() {
+  return `
+    <tr>
+      <td></td>
+      <td></td>
+      <td class="summary-sheet-time-cell"></td>
+      <td class="summary-sheet-time-cell"></td>
+      <td class="summary-sheet-derived-cell"></td>
+      <td class="summary-sheet-rank-cell"></td>
+    </tr>
+  `;
+}
+
+function buildTimingSummary(className, options = {}) {
+  const { blank = false, interactive = false } = options;
+  const columns = [
+    { header: "ชื่อทีมแข่ง", width: "40%" },
+    { header: "หมายเลขรถ", width: "12%" },
+    { header: "เวลารอบที่ 1", width: "12%" },
+    { header: "เวลารอบที่ 2", width: "12%" },
+    { header: "เวลาที่ดีที่สุด", width: "14%" },
+    { header: "อันดับ", width: "10%" },
+  ];
+  const filledRows = blank ? [] : getTimingSheetRows(className);
+  const minimumRows = SUMMARY_MINIMUM_ROWS["timing-sheet"];
+  const rowsPerPage = SUMMARY_ROWS_PER_PAGE["timing-sheet"];
+  const colgroup = columns
+    .map((column) => `<col style="width: ${column.width};" />`)
+    .join("");
+  const head = columns
+    .map((column) => `<th>${escapeHtml(column.header)}</th>`)
+    .join("");
+  const pageRows = [...filledRows];
+
+  while (pageRows.length < minimumRows) {
+    pageRows.push(null);
+  }
+
+  const pages = [];
+  for (let index = 0; index < pageRows.length; index += rowsPerPage) {
+    pages.push(pageRows.slice(index, index + rowsPerPage));
+  }
+
+  return pages
+    .map((rows, pageIndex) => {
+      const body = rows
+        .map((row) => {
+          return row
+            ? buildTimingSummaryRow(row, { interactive: interactive && !blank })
+            : buildEmptyTimingSummaryRow();
+        })
+        .join("");
+      const totalPages = pages.length;
+      const inlineNote = blank
+        ? `แบบเปล่าสำหรับเขียนหน้างาน${totalPages > 1 ? ` | หน้า ${pageIndex + 1} / ${totalPages}` : ""}`
+        : totalPages > 1
+          ? `หน้า ${pageIndex + 1} / ${totalPages}`
+          : "";
+      const titleRow = inlineNote
+        ? `
+          <div class="summary-sheet-title-row">
+            <div class="summary-sheet-title">รุ่น ${escapeHtml(className || "-")}</div>
+            <div class="summary-sheet-note summary-sheet-note--inline">${escapeHtml(inlineNote)}</div>
+          </div>
+        `
+        : `<div class="summary-sheet-title">รุ่น ${escapeHtml(className || "-")}</div>`;
+
+      return `
+        <section class="summary-sheet summary-sheet-timing">
+          ${buildSummarySheetBrand()}
+          ${titleRow}
+          <table class="summary-sheet-table">
+            <colgroup>${colgroup}</colgroup>
+            <thead>
+              <tr>${head}</tr>
+            </thead>
+            <tbody>${body}</tbody>
+          </table>
+        </section>
+      `;
+    })
+    .join("");
 }
 function getBracketEntriesForClass(className) {
   return getRegistrationsForClass(className).map((registration, index) => {
@@ -2665,15 +3071,21 @@ function renderSummaryPreview() {
   }
 
   const isBracketTemplate = state.selectedSummaryTemplate === "bracket-12";
+  const isTimingTemplate = state.selectedSummaryTemplate === "timing-sheet";
   const previewHtml = isBracketTemplate
     ? buildBracketSummary(className, { interactive: true })
-    : summaryDocument.html;
+    : isTimingTemplate
+      ? buildTimingSummary(className, { interactive: true })
+      : summaryDocument.html;
   elements.summaryPreview.innerHTML = `
     <div class="summary-preview-paper${isBracketTemplate ? " summary-preview-paper-bracket" : ""}">
       ${previewHtml}
     </div>
   `;
   elements.summaryPreview.scrollLeft = 0;
+  if (isTimingTemplate) {
+    updateTimingSheetPreviewComputedFields();
+  }
 }
 function clampVehicleCount(value) {
   const parsed = Number.parseInt(value, 10);
@@ -3849,12 +4261,31 @@ function bindEvents() {
     renderSummaryPreview();
   });
 
+  bindIfPresent(elements.summaryPreview, "input", (event) => {
+    const timingTarget = event.target instanceof Element
+      ? event.target.closest("[data-action='timing-input']")
+      : null;
+    if (timingTarget) {
+      handleTimingSheetInput(timingTarget);
+    }
+  });
+
   bindIfPresent(elements.summaryPreview, "change", (event) => {
     if (!state.selectedSummaryClass) {
       return;
     }
 
-    const bracketTarget = event.target.closest("[data-action='bracket-select']");
+    const timingTarget = event.target instanceof Element
+      ? event.target.closest("[data-action='timing-input']")
+      : null;
+    if (timingTarget) {
+      handleTimingSheetInput(timingTarget);
+      return;
+    }
+
+    const bracketTarget = event.target instanceof Element
+      ? event.target.closest("[data-action='bracket-select']")
+      : null;
     if (bracketTarget) {
       setBracketSelection(
         state.selectedSummaryClass,
@@ -3866,7 +4297,9 @@ function bindEvents() {
       return;
     }
 
-    const thirdPlaceTarget = event.target.closest("[data-action='bracket-third-place-select']");
+    const thirdPlaceTarget = event.target instanceof Element
+      ? event.target.closest("[data-action='bracket-third-place-select']")
+      : null;
     if (thirdPlaceTarget) {
       setThirdPlaceWinner(state.selectedSummaryClass, thirdPlaceTarget.value);
       renderSummaryPreview();
@@ -3874,7 +4307,9 @@ function bindEvents() {
   });
 
   bindIfPresent(elements.summaryPreview, "click", (event) => {
-    const target = event.target.closest("[data-action='reset-bracket']");
+    const target = event.target instanceof Element
+      ? event.target.closest("[data-action='reset-bracket']")
+      : null;
     if (!target || !state.selectedSummaryClass) {
       return;
     }
