@@ -1,4 +1,4 @@
-﻿:root {
+:root {
   --bg: #05070b;
   --surface: rgba(11, 16, 24, 0.84);
   --surface-strong: rgba(17, 23, 34, 0.96);
@@ -161,6 +161,110 @@ textarea {
     linear-gradient(140deg, rgba(255, 32, 57, 0.2), transparent 34%),
     linear-gradient(180deg, rgba(15, 20, 28, 0.96), rgba(8, 11, 17, 0.96));
   box-shadow: var(--shadow);
+}
+
+.hero--single-column {
+  grid-template-columns: minmax(0, 1fr);
+  min-height: clamp(360px, 42vw, 520px);
+}
+
+.hero--single-column .hero-copy-block {
+  grid-template-columns: minmax(0, 1.12fr) minmax(300px, 0.88fr);
+  grid-template-areas:
+    "eyebrow eyebrow"
+    "lockup rail"
+    "tagline rail"
+    "copy rail";
+  column-gap: clamp(24px, 4vw, 56px);
+  row-gap: 16px;
+  align-items: center;
+}
+
+.hero--single-column .eyebrow {
+  grid-area: eyebrow;
+  margin-bottom: 0;
+}
+
+.hero--single-column .hero-title-lockup {
+  grid-area: lockup;
+  display: grid;
+  grid-template-columns: minmax(240px, 0.78fr) minmax(280px, 1fr);
+  gap: clamp(22px, 4vw, 52px);
+  align-items: center;
+  max-width: none;
+}
+
+.hero--single-column .hero-mark--logo {
+  width: clamp(210px, 28vw, 320px);
+}
+
+.hero--single-column .hero-headline {
+  max-width: 100%;
+}
+
+.hero--single-column .hero-tagline {
+  grid-area: tagline;
+  max-width: 28ch;
+  margin-top: 4px;
+}
+
+.hero--single-column .hero-copy {
+  grid-area: copy;
+  max-width: 62ch;
+  margin-top: 0;
+}
+
+.hero--single-column .hero-detail-grid {
+  grid-area: rail;
+  position: relative;
+  align-self: stretch;
+  align-content: center;
+  justify-self: end;
+  width: min(100%, 390px);
+  max-width: none;
+  grid-template-columns: 1fr;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 28px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02)),
+    linear-gradient(155deg, rgba(255, 32, 57, 0.1), rgba(255, 207, 69, 0.08) 48%, rgba(8, 11, 17, 0.9));
+  box-shadow: 0 28px 56px rgba(0, 0, 0, 0.22);
+  overflow: hidden;
+}
+
+.hero--single-column .hero-detail-grid::before {
+  position: absolute;
+  inset: 14px;
+  content: "";
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at top right, rgba(255, 207, 69, 0.12), transparent 38%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.04), transparent 62%);
+  pointer-events: none;
+}
+
+.hero--single-column .hero-detail-card {
+  position: relative;
+  z-index: 1;
+  min-height: 114px;
+  padding: 18px 18px 20px;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.03)),
+    rgba(8, 11, 17, 0.72);
+  backdrop-filter: blur(12px);
+}
+
+.hero--single-column .hero-detail-card strong {
+  font-size: 1.08rem;
+}
+
+.hero--single-column::after {
+  right: -4%;
+  width: 44%;
+  opacity: 0.46;
 }
 
 .hero::before,
@@ -2018,6 +2122,26 @@ kbd {
     grid-template-columns: 1fr;
   }
 
+  .hero--single-column .hero-copy-block {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "eyebrow"
+      "lockup"
+      "tagline"
+      "copy"
+      "rail";
+  }
+
+  .hero--single-column .hero-title-lockup {
+    grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
+  }
+
+  .hero--single-column .hero-detail-grid {
+    justify-self: stretch;
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .form-grid,
   .search-toolbar-head {
     grid-template-columns: 1fr;
@@ -2098,6 +2222,31 @@ kbd {
   .hero-detail-grid {
     grid-template-columns: 1fr;
     display: grid;
+  }
+
+  .hero--single-column {
+    min-height: auto;
+  }
+
+  .hero--single-column .hero-title-lockup {
+    gap: 18px;
+  }
+
+  .hero--single-column .hero-mark--logo {
+    width: min(100%, 260px);
+  }
+
+  .hero--single-column .hero-tagline,
+  .hero--single-column .hero-copy {
+    max-width: none;
+  }
+
+  .hero--single-column .hero-detail-grid {
+    padding: 14px;
+  }
+
+  .hero--single-column .hero-detail-card {
+    min-height: auto;
   }
 
   .hero-mark--logo {
