@@ -6,5 +6,13 @@
     "WAVE125 67 ชักเดิม (อะไหล่ไฮสปีด)",
     "Lead125, Giorno+ , Grand filano 63 ชักเดิม (อะไหล่ไฮสปีด)",
     "Lead125, Giorno+ , Grand filano 66 ชัก 5 (อะไหล่ไฮสปีด)"
-  ]
+  ],
+  "eventBrand": {
+    "name": "งานแข่งรถไฮสปีด บิดหมดปลอก",
+    "locationLine1": "ณ สนามแข่งรถบ้านฉางเรสซิ่ง",
+    "locationLine2": "จ.ระยอง",
+    "header": "ระบบจัดการผู้สมัครหน้างาน",
+    "logoPath": "/logo-bidmodplok.svg"
+  },
+  "currentVenueId": "default"
 }

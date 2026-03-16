@@ -1,30 +1,23 @@
-const SVG_BOARD = {
-  width: 1835,
-  height: 1166,
+const DEFAULT_VENUE_CONFIG = {
+  id: "default",
+  label: "ผังสนาม",
+  mobileBreakpoint: 720,
+  board: {
+    width: 1835,
+    height: 1166,
+    mobileViews: {
+      ALL: {
+        x: 0,
+        width: 1835,
+      },
+    },
+    elements: [],
+  },
+  zones: [],
 };
-const MOBILE_BREAKPOINT = 720;
-const MOBILE_ZONE_VIEWS = {
-  ALL: {
-    x: 0,
-    width: SVG_BOARD.width,
-  },
-  A: {
-    x: 72,
-    width: 390,
-  },
-  B: {
-    x: 0,
-    width: 340,
-  },
-  C: {
-    x: 330,
-    width: 1505,
-  },
-  D: {
-    x: 130,
-    width: 1510,
-  },
-};
+const SVG_BOARD = DEFAULT_VENUE_CONFIG.board;
+const MOBILE_BREAKPOINT = DEFAULT_VENUE_CONFIG.mobileBreakpoint;
+const MOBILE_ZONE_VIEWS = DEFAULT_VENUE_CONFIG.board.mobileViews;
 const MOBILE_ZONE_BUTTONS = [
   { code: "ALL", label: "ทั้งผัง" },
   { code: "A", label: "โซน A" },
@@ -80,6 +73,15 @@ const SLOT_LAYOUTS = {
 };
 const UNAVAILABLE_COPY = "เต็นท์ช่องนี้ไม่เปิดให้จอง";
 
+const DEFAULT_EVENT_BRAND = {
+  name: "งานแข่งรถไฮสปีด บิดหมดปลอก",
+  locationLine1: "ณ สนามแข่งรถบ้านฉางเรสซิ่ง",
+  locationLine2: "จ.ระยอง",
+  header: "ระบบจัดการผู้สมัครหน้างาน",
+  logoPath: "/logo-bidmodplok.svg",
+};
+const EVENT_BRAND = buildEventBrand(DEFAULT_EVENT_BRAND);
+
 const zoneCopyMap = {
   A: "โซนด้านบนใกล้ลานจอดรถ",
   B: "โซนด้านซ้ายใกล้พื้นที่บริการ",
@@ -103,11 +105,192 @@ const state = {
   availableSlots: 0,
   lastUpdatedAt: "",
   mobileFocusZone: "ALL",
+  pendingAvailabilityTarget: "",
   registrations: [],
   savingSlotId: "",
   selectedSlotId: "",
   slots: [],
+  venue: normalizeVenueConfig(DEFAULT_VENUE_CONFIG),
 };
+
+function readEventBrandText(value, fallback, options = {}) {
+  const { allowBlank = false } = options;
+  if (typeof value !== "string") {
+    return fallback;
+  }
+
+  const text = value.trim();
+  return allowBlank ? text : text || fallback;
+}
+
+function buildEventBrand(input = {}) {
+  const name = readEventBrandText(input.name, DEFAULT_EVENT_BRAND.name);
+  const locationLine1 = readEventBrandText(
+    input.locationLine1,
+    DEFAULT_EVENT_BRAND.locationLine1,
+  );
+  const locationLine2 = readEventBrandText(
+    input.locationLine2,
+    DEFAULT_EVENT_BRAND.locationLine2,
+    { allowBlank: true },
+  );
+  const header = readEventBrandText(input.header, DEFAULT_EVENT_BRAND.header);
+  const logoPath = readEventBrandText(input.logoPath, DEFAULT_EVENT_BRAND.logoPath);
+  const locationLines = [locationLine1, locationLine2].filter(Boolean);
+  const subtitle = locationLines.join(" ");
+  const fullName = [name, subtitle].filter(Boolean).join(" ");
+
+  return {
+    name,
+    locationLine1,
+    locationLine2,
+    locationLines,
+    subtitle,
+    fullName,
+    header,
+    logoPath,
+  };
+}
+
+function applyEventBrand(nextBrand) {
+  Object.assign(EVENT_BRAND, buildEventBrand(nextBrand));
+}
+
+function getPositiveNumber(value, fallback) {
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+function normalizeVenueZone(zone) {
+  const candidate = zone && typeof zone === "object" ? zone : {};
+  const layout = candidate.layout && typeof candidate.layout === "object" ? candidate.layout : {};
+  const code = String(candidate.code || "").trim().toUpperCase();
+  const count = Number.parseInt(candidate.count, 10);
+  const baseBookable = typeof candidate.baseBookable === "boolean"
+    ? candidate.baseBookable
+    : candidate.bookable !== false;
+  const isBookable = typeof candidate.isBookable === "boolean"
+    ? candidate.isBookable
+    : baseBookable;
+
+  if (!code || !Number.isInteger(count) || count < 1) {
+    return null;
+  }
+
+  return {
+    code,
+    label: String(candidate.label || `ZONE ${code}`),
+    mobileLabel: String(candidate.mobileLabel || `โซน ${code}`),
+    count,
+    bookable: baseBookable,
+    baseBookable,
+    isBookable,
+    availabilityOverride: String(candidate.availabilityOverride || "default"),
+    availabilitySource: String(
+      candidate.availabilitySource || (isBookable ? "venue-open" : "venue-locked"),
+    ),
+    totalSlots: Number.parseInt(candidate.totalSlots, 10) || count,
+    availableSlots: Number.parseInt(candidate.availableSlots, 10) || 0,
+    bookedSlots: Number.parseInt(candidate.bookedSlots, 10) || 0,
+    lockedSlots: Number.parseInt(candidate.lockedSlots, 10) || 0,
+    description: String(candidate.description || ""),
+    layout: {
+      x: getPositiveNumber(Number(layout.x), 0) - 0,
+      y: getPositiveNumber(Number(layout.y), 0) - 0,
+      width: getPositiveNumber(Number(layout.width), 1),
+      height: getPositiveNumber(Number(layout.height), 1),
+      columns: getPositiveNumber(Number.parseInt(layout.columns, 10), count),
+      accentPosition: String(layout.accentPosition || "top"),
+      accentHeight: getPositiveNumber(Number(layout.accentHeight), 0),
+      labelY: getPositiveNumber(Number(layout.labelY), 24),
+      labelSize: getPositiveNumber(Number(layout.labelSize), 12),
+    },
+  };
+}
+
+function normalizeTentSlot(slot) {
+  const candidate = slot && typeof slot === "object" ? slot : {};
+  const isBookable = candidate.isBookable !== false;
+
+  return {
+    id: String(candidate.id || ""),
+    label: String(candidate.label || candidate.id || ""),
+    zone: String(candidate.zone || "").trim().toUpperCase(),
+    order: Number.parseInt(candidate.order, 10) || 0,
+    isBookable,
+    isLocked: candidate.isLocked === true || !isBookable,
+    availabilityOverride: String(candidate.availabilityOverride || "default"),
+    availabilitySource: String(
+      candidate.availabilitySource || (isBookable ? "venue-open" : "venue-locked"),
+    ),
+    registrationId: String(candidate.registrationId || ""),
+    applicantName: String(candidate.applicantName || ""),
+    contactPhone: String(candidate.contactPhone || ""),
+    updatedAt: String(candidate.updatedAt || ""),
+  };
+}
+
+function normalizeVenueConfig(input = {}) {
+  const candidate = input && typeof input === "object" ? input : {};
+  const board = candidate.board && typeof candidate.board === "object" ? candidate.board : {};
+  const width = getPositiveNumber(Number(board.width), DEFAULT_VENUE_CONFIG.board.width);
+  const height = getPositiveNumber(Number(board.height), DEFAULT_VENUE_CONFIG.board.height);
+  const rawMobileViews = board.mobileViews && typeof board.mobileViews === "object"
+    ? board.mobileViews
+    : DEFAULT_VENUE_CONFIG.board.mobileViews;
+  const zones = Array.isArray(candidate.zones)
+    ? candidate.zones.map(normalizeVenueZone).filter(Boolean)
+    : [];
+  const mobileViews = {
+    ALL: {
+      x: Number(rawMobileViews.ALL?.x) || 0,
+      width: getPositiveNumber(Number(rawMobileViews.ALL?.width), width),
+    },
+  };
+
+  for (const zone of zones) {
+    const mobileView = rawMobileViews[zone.code];
+    if (!mobileView || typeof mobileView !== "object") {
+      continue;
+    }
+
+    mobileViews[zone.code] = {
+      x: Number(mobileView.x) || 0,
+      width: getPositiveNumber(Number(mobileView.width), width),
+    };
+  }
+
+  return {
+    id: String(candidate.id || DEFAULT_VENUE_CONFIG.id),
+    label: String(candidate.label || DEFAULT_VENUE_CONFIG.label),
+    mobileBreakpoint: getPositiveNumber(
+      Number.parseInt(candidate.mobileBreakpoint, 10),
+      DEFAULT_VENUE_CONFIG.mobileBreakpoint,
+    ),
+    board: {
+      width,
+      height,
+      mobileViews,
+      elements: Array.isArray(board.elements) ? board.elements : [],
+    },
+    zones,
+  };
+}
+
+function getVenueZoneConfig(zoneCode) {
+  return state.venue.zones.find((zone) => zone.code === zoneCode) || null;
+}
+
+function getVenueBoard() {
+  return state.venue.board || DEFAULT_VENUE_CONFIG.board;
+}
+
+function getVenueMobileViews() {
+  return getVenueBoard().mobileViews || DEFAULT_VENUE_CONFIG.board.mobileViews;
+}
+
+function isBusy() {
+  return Boolean(state.savingSlotId || state.pendingAvailabilityTarget);
+}
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -116,6 +299,30 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+}
+
+function applyEventBrandToPage() {
+  document.querySelectorAll(".hero-event").forEach((container) => {
+    container.innerHTML = EVENT_BRAND.locationLines
+      .map((line) => `<span class="hero-event-line">${escapeHtml(line)}</span>`)
+      .join("");
+  });
+
+  document.querySelectorAll(".hero-logo").forEach((image) => {
+    image.alt = EVENT_BRAND.fullName;
+  });
+}
+
+function syncRenderedEventBrand() {
+  const eventTitle = elements.tentMap?.querySelector(".venue-svg-event-title");
+  if (eventTitle) {
+    eventTitle.textContent = EVENT_BRAND.name;
+  }
+
+  const eventSubtitle = elements.tentMap?.querySelector(".venue-svg-event-subtitle");
+  if (eventSubtitle) {
+    eventSubtitle.textContent = EVENT_BRAND.subtitle;
+  }
 }
 
 function formatDate(value) {
@@ -226,7 +433,7 @@ function getSelectedSlot() {
 }
 
 function isCompactViewport() {
-  return window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`).matches;
+  return window.matchMedia(`(max-width: ${state.venue.mobileBreakpoint}px)`).matches;
 }
 
 function getZoneStats(zoneCode) {
@@ -272,6 +479,86 @@ function buildZoneMeta(zoneCode, stats) {
   return `ว่าง ${stats.available} ช่อง`;
 }
 
+function buildZoneAvailabilityCopy(zone) {
+  if (!zone) {
+    return "";
+  }
+
+  if (!zone.isBookable && zone.availabilitySource === "venue-locked") {
+    return "โซนนี้ถูกปิดตามค่าเริ่มต้นของผังสนาม";
+  }
+
+  if (!zone.isBookable) {
+    return `โซน ${zone.code} ถูกล็อกทั้งโซน`;
+  }
+
+  if (zone.availabilitySource === "zone-open" && zone.baseBookable === false) {
+    return `โซน ${zone.code} ถูกปลดล็อกให้เปิดจองได้แล้ว`;
+  }
+
+  return `โซน ${zone.code} เปิดจองตามปกติ`;
+}
+
+function buildSlotAvailabilityBadge(slot) {
+  if (!slot.isBookable) {
+    return "ล็อกไม่ให้จอง";
+  }
+
+  return slot.registrationId ? "เปิดให้จอง" : "ว่างและจองได้";
+}
+
+function buildSlotAvailabilityCopy(slot, zoneConfig) {
+  if (!slot) {
+    return "";
+  }
+
+  if (slot.availabilitySource === "slot-locked") {
+    return "ช่องนี้ถูกล็อกเฉพาะช่อง";
+  }
+
+  if (slot.availabilitySource === "slot-open") {
+    return "ช่องนี้ถูกปลดล็อกเฉพาะช่อง";
+  }
+
+  if (slot.availabilitySource === "zone-locked") {
+    return `โซน ${slot.zone} ถูกล็อกทั้งโซน`;
+  }
+
+  if (slot.availabilitySource === "zone-open") {
+    return `โซน ${slot.zone} ถูกปลดล็อกให้ใช้งานได้`;
+  }
+
+  if (slot.availabilitySource === "venue-locked") {
+    return "ช่องนี้ถูกปิดตามค่าเริ่มต้นของผังสนาม";
+  }
+
+  return zoneConfig?.description || "";
+}
+
+function buildSlotAvailabilityTag(slot) {
+  if (!slot) {
+    return "";
+  }
+
+  if (slot.availabilitySource === "slot-locked") {
+    return "ล็อกเฉพาะช่อง";
+  }
+
+  if (slot.availabilitySource === "slot-open") {
+    return "ปลดล็อกเฉพาะช่อง";
+  }
+
+  if (slot.availabilitySource === "zone-locked" || slot.availabilitySource === "venue-locked") {
+    return "ล็อกจากโซน";
+  }
+
+  if (slot.availabilitySource === "zone-open") {
+    return "ปลดล็อกจากโซน";
+  }
+
+  return "";
+}
+
 function buildApplicantOptions(selectedId) {
   const defaultOption = `<option value="">ว่าง</option>`;
   const options = state.registrations
@@ -289,7 +576,21 @@ function buildApplicantOptions(selectedId) {
 }
 
 function getSlotGeometry(slot) {
-  const layout = SLOT_LAYOUTS[slot.zone];
+  const layout = getVenueZoneConfig(slot.zone)?.layout;
+  if (!layout) {
+    return {
+      x: 0,
+      y: 0,
+      width: 1,
+      height: 1,
+      columns: 1,
+      accentPosition: "top",
+      accentHeight: 0,
+      labelY: 16,
+      labelSize: 12,
+      slotWidth: 1,
+    };
+  }
   const slotWidth = layout.width / layout.columns;
 
   return {
@@ -489,6 +790,7 @@ function renderSvgSlot(slot) {
   const geometry = getSlotGeometry(slot);
   const labelMetrics = getSlotLabelMetrics(slot, geometry);
   const isBookable = Boolean(slot.isBookable);
+  const slotStatus = !isBookable ? "ล็อกอยู่" : slot.registrationId ? "จองแล้ว" : "ยังว่าง";
   const classes = [
     "venue-svg-slot",
     `venue-svg-slot--${slot.zone.toLowerCase()}`,
@@ -499,16 +801,15 @@ function renderSvgSlot(slot) {
     .filter(Boolean)
     .join(" ");
   const labelY = geometry.y + geometry.labelY;
-  const accessibilityAttributes = isBookable
-    ? `tabindex="0" role="button" aria-pressed="${state.selectedSlotId === slot.id}"`
-    : `aria-disabled="true"`;
+  const accessibilityAttributes = `tabindex="0" role="button" aria-pressed="${state.selectedSlotId === slot.id}"`;
 
   return `
     <g
       class="${classes}"
       data-slot-id="${escapeHtml(slot.id)}"
       data-bookable="${isBookable}"
-      aria-label="เต็นท์ ${escapeHtml(slot.label)}"
+      data-locked="${!isBookable}"
+      aria-label="เต็นท์ ${escapeHtml(slot.label)} สถานะ ${escapeHtml(slotStatus)}"
       ${accessibilityAttributes}
     >
       <rect
@@ -544,6 +845,17 @@ function renderZoneSlots(zoneCode) {
 }
 
 function renderMobileZoneNav() {
+  const mobileZoneButtons = [
+    { code: "ALL", label: "ทั้งผัง" },
+    ...state.venue.zones.map((zone) => {
+      return {
+        code: zone.code,
+        label: zone.mobileLabel || zone.label || `โซน ${zone.code}`,
+      };
+    }),
+  ];
+  const busy = isBusy();
+
   return `
     <section class="tent-mobile-zone-nav" aria-label="ตัวช่วยดูผังการจองเต็นท์">
       <div class="tent-mobile-zone-copy">
@@ -552,21 +864,44 @@ function renderMobileZoneNav() {
         <p>กดปุ่มโซนเพื่อเลื่อนไปยังตำแหน่งนั้นในผังทันที และดูจำนวนที่จองแล้วหรือยังว่างได้จากการ์ดแต่ละโซน</p>
       </div>
       <div class="tent-mobile-zone-list" role="tablist" aria-label="เลือกตำแหน่งในผัง">
-        ${MOBILE_ZONE_BUTTONS.map((zone) => {
+        ${mobileZoneButtons.map((zone) => {
           const isActive = state.mobileFocusZone === zone.code;
           const stats = getZoneStats(zone.code);
+          const zoneConfig = getVenueZoneConfig(zone.code);
+          const zoneActionLabel = zoneConfig?.isBookable ? `ล็อกโซน ${zone.code}` : `ปลดล็อกโซน ${zone.code}`;
           return `
-            <button
-              class="tent-mobile-zone-button${isActive ? " is-active" : ""}"
-              type="button"
-              data-action="focus-zone"
-              data-zone="${zone.code}"
-              aria-pressed="${isActive}"
-            >
-              <span class="tent-mobile-zone-button-label">${zone.label}</span>
-              <strong>${buildZoneHeadline(zone.code, stats)}</strong>
-              <small>${buildZoneMeta(zone.code, stats)}</small>
-            </button>
+            <article class="tent-mobile-zone-card${zoneConfig && !zoneConfig.isBookable ? " is-locked" : ""}">
+              <button
+                class="tent-mobile-zone-button${isActive ? " is-active" : ""}"
+                type="button"
+                data-action="focus-zone"
+                data-zone="${zone.code}"
+                aria-pressed="${isActive}"
+              >
+                <span class="tent-mobile-zone-button-label">${zone.label}</span>
+                <strong>${buildZoneHeadline(zone.code, stats)}</strong>
+                <small>${buildZoneMeta(zone.code, stats)}</small>
+              </button>
+              ${
+                zone.code === "ALL"
+                  ? ""
+                  : `
+                    <div class="tent-mobile-zone-footer">
+                      <span class="tent-mobile-zone-state">${escapeHtml(buildZoneAvailabilityCopy(zoneConfig))}</span>
+                      <button
+                        class="button button-secondary button-small tent-mobile-zone-action"
+                        type="button"
+                        data-action="toggle-zone-lock"
+                        data-zone="${zone.code}"
+                        data-next-mode="${zoneConfig?.isBookable ? "lock" : "unlock"}"
+                        ${busy ? "disabled" : ""}
+                      >
+                        ${zoneActionLabel}
+                      </button>
+                    </div>
+                  `
+              }
+            </article>
           `;
         }).join("")}
       </div>
@@ -591,6 +926,17 @@ function renderSelectionSpotlight() {
 
   const registration = getRegistrationById(selectedSlot.registrationId);
   const isBooked = Boolean(selectedSlot.registrationId);
+  const availabilityLabel = !selectedSlot.isBookable
+    ? "ล็อกอยู่"
+    : isBooked
+      ? "จองแล้ว"
+      : "ยังว่าง";
+  const availabilityClass = !selectedSlot.isBookable
+    ? "is-locked"
+    : isBooked
+      ? "is-booked"
+      : "is-open";
+  const zoneConfig = getVenueZoneConfig(selectedSlot.zone);
 
   return `
     <section class="tent-selection-spotlight" data-booked="${isBooked}">
@@ -600,16 +946,22 @@ function renderSelectionSpotlight() {
           <h3>${escapeHtml(selectedSlot.label)}</h3>
           <p>ZONE ${escapeHtml(selectedSlot.zone)}</p>
         </div>
-        <span class="tent-selection-pill ${isBooked ? "is-booked" : "is-open"}">
-          ${isBooked ? "จองแล้ว" : "ยังว่าง"}
+        <span class="tent-selection-pill ${availabilityClass}">
+          ${availabilityLabel}
         </span>
       </div>
       <strong class="tent-selection-team">
-        ${escapeHtml(registration?.applicantName || "ยังไม่มีทีมเลือกช่องนี้")}
+        ${
+          selectedSlot.isBookable
+            ? escapeHtml(registration?.applicantName || "ยังไม่มีทีมเลือกช่องนี้")
+            : "ช่องนี้ยังไม่เปิดให้เลือกจอง"
+        }
       </strong>
       <p class="tent-selection-meta">
         ${
-          registration
+          !selectedSlot.isBookable
+            ? escapeHtml(buildSlotAvailabilityCopy(selectedSlot, zoneConfig))
+            : registration
             ? escapeHtml(buildRegistrationMeta(registration))
             : "เลือกทีมจาก dropdown ในแผงด้านล่างเพื่อบันทึกการจองได้เลย"
         }
@@ -639,6 +991,12 @@ function renderEditorCard() {
   const isBooked = Boolean(selectedSlot.registrationId);
   const isSaving = state.savingSlotId === selectedSlot.id;
   const isBookable = Boolean(selectedSlot.isBookable);
+  const zoneConfig = getVenueZoneConfig(selectedSlot.zone);
+  const busy = isBusy();
+  const slotAvailabilityTag = buildSlotAvailabilityTag(selectedSlot);
+  const slotAvailabilityCopy = buildSlotAvailabilityCopy(selectedSlot, zoneConfig);
+  const nextSlotAction = isBookable ? "lock" : "unlock";
+  const nextZoneAction = zoneConfig?.isBookable ? "lock" : "unlock";
 
   return `
     <section class="venue-editor-card">
@@ -650,8 +1008,9 @@ function renderEditorCard() {
       <div class="venue-editor-chip-row">
         <span class="venue-editor-chip">ZONE ${escapeHtml(selectedSlot.zone)}</span>
         <span class="venue-editor-chip ${isBookable ? "is-available" : "is-locked"}">
-          ${isBookable ? (isBooked ? "เปิดให้จอง" : "ว่างและจองได้") : "ล็อกไม่ให้จอง"}
+          ${buildSlotAvailabilityBadge(selectedSlot)}
         </span>
+        ${slotAvailabilityTag ? `<span class="venue-editor-chip">${escapeHtml(slotAvailabilityTag)}</span>` : ""}
       </div>
 
       <div class="venue-editor-summary" data-booked="${isBooked}" data-locked="${!isBookable}">
@@ -662,8 +1021,8 @@ function renderEditorCard() {
         }</strong>
         <span>${
           isBookable
-            ? escapeHtml(registration ? buildRegistrationMeta(registration) : zoneCopyMap[selectedSlot.zone] || "")
-            : escapeHtml(UNAVAILABLE_COPY)
+            ? escapeHtml(registration ? buildRegistrationMeta(registration) : slotAvailabilityCopy)
+            : escapeHtml(slotAvailabilityCopy || UNAVAILABLE_COPY)
         }</span>
       </div>
 
@@ -671,7 +1030,7 @@ function renderEditorCard() {
         <span>เลือกทีมที่จองเต็นท์นี้</span>
         <select
           data-action="editor-registration-select"
-          ${!isBookable || isSaving || state.registrations.length === 0 ? "disabled" : ""}
+          ${!isBookable || isSaving || busy || state.registrations.length === 0 ? "disabled" : ""}
         >
           ${buildApplicantOptions(selectedSlot.registrationId)}
         </select>
@@ -682,24 +1041,112 @@ function renderEditorCard() {
           class="button button-secondary"
           type="button"
           data-action="clear-slot-booking"
-          ${!isBookable || !isBooked || isSaving ? "disabled" : ""}
+          ${!isBookable || !isBooked || isSaving || busy ? "disabled" : ""}
         >
           ล้างการจอง
         </button>
+        <button
+          class="button ${isBookable ? "button-danger" : "button-secondary"}"
+          type="button"
+          data-action="toggle-slot-lock"
+          data-next-mode="${nextSlotAction}"
+          ${busy ? "disabled" : ""}
+        >
+          ${isBookable ? "ล็อกช่องนี้" : "ปลดล็อกช่องนี้"}
+        </button>
+        ${
+          zoneConfig
+            ? `
+              <button
+                class="button button-secondary"
+                type="button"
+                data-action="toggle-zone-lock"
+                data-zone="${zoneConfig.code}"
+                data-next-mode="${nextZoneAction}"
+                ${busy ? "disabled" : ""}
+              >
+                ${zoneConfig.isBookable ? `ล็อกโซน ${zoneConfig.code}` : `ปลดล็อกโซน ${zoneConfig.code}`}
+              </button>
+            `
+            : ""
+        }
       </div>
 
       <div class="venue-editor-note">
         ${
           isBookable
-            ? "คลิกช่องอื่นบนผังเพื่อสลับเต็นท์ที่ต้องการจัดการ"
-            : "โซน A และโซน B ทั้งหมดถูกล็อกไม่ให้จองตามผังงาน"
+            ? `${slotAvailabilityCopy || "คลิกช่องอื่นบนผังเพื่อสลับเต็นท์ที่ต้องการจัดการ"} หากล็อกช่องหรือทั้งโซน ระบบจะล้าง booking ที่อยู่ในพื้นที่นั้นให้อัตโนมัติ`
+            : `${slotAvailabilityCopy || UNAVAILABLE_COPY} สามารถปลดล็อกเฉพาะช่องนี้หรือปลดล็อกทั้งโซนจากปุ่มด้านบนได้`
         }
       </div>
     </section>
   `;
 }
 
+function renderSvgAttributes(attributes = {}) {
+  return Object.entries(attributes)
+    .filter(([, value]) => value !== null && value !== undefined && value !== false)
+    .map(([name, value]) => {
+      const attributeName = name === "className" ? "class" : name;
+      return `${attributeName}="${escapeHtml(value)}"`;
+    })
+    .join(" ");
+}
+
+function renderBoardElement(element) {
+  const candidate = element && typeof element === "object" ? element : {};
+  const { type, attrs = {}, children = [] } = candidate;
+
+  if (type === "zone-slots") {
+    return renderZoneSlots(candidate.zone);
+  }
+
+  if (type === "event-title") {
+    return `<text ${renderSvgAttributes(attrs)}>${escapeHtml(EVENT_BRAND.name)}</text>`;
+  }
+
+  if (type === "event-subtitle") {
+    return `<text ${renderSvgAttributes(attrs)}>${escapeHtml(EVENT_BRAND.subtitle)}</text>`;
+  }
+
+  if (!type) {
+    return "";
+  }
+
+  const childMarkup = Array.isArray(children)
+    ? children.map(renderBoardElement).join("")
+    : "";
+  const textContent = type === "text" ? escapeHtml(candidate.text || "") : "";
+  const attributes = renderSvgAttributes(attrs);
+  const attributeBlock = attributes ? ` ${attributes}` : "";
+
+  return `<${type}${attributeBlock}>${textContent}${childMarkup}</${type}>`;
+}
+
+function renderVenueMapBoardFromConfig() {
+  const board = getVenueBoard();
+  const elementMarkup = board.elements.map(renderBoardElement).join("");
+
+  return `
+    <div class="venue-map-scroller">
+      <div class="venue-map-board">
+        <svg
+          class="venue-map-svg"
+          viewBox="0 0 ${board.width} ${board.height}"
+          aria-label="ผังจองเต็นท์ล่วงหน้า"
+          role="img"
+          preserveAspectRatio="xMidYMid meet"
+        >
+          ${elementMarkup}
+        </svg>
+      </div>
+    </div>
+  `;
+}
+
 function renderVenueMapBoard() {
+  return renderVenueMapBoardFromConfig();
+
   return `
     <div class="venue-map-scroller">
       <div class="venue-map-board">
@@ -830,6 +1277,7 @@ function renderMap() {
     </div>
   `;
 
+  syncRenderedEventBrand();
   queueMobileZoneFocus();
 }
 
@@ -863,21 +1311,38 @@ function renderPage() {
   renderMap();
 }
 
+function applyTentBookingSnapshot(payload = {}) {
+  state.venue = normalizeVenueConfig(payload.venue || state.venue);
+  if (
+    state.mobileFocusZone !== "ALL" &&
+    !state.venue.zones.some((zone) => zone.code === state.mobileFocusZone)
+  ) {
+    state.mobileFocusZone = "ALL";
+  }
+
+  state.slots = Array.isArray(payload.slots)
+    ? payload.slots.map(normalizeTentSlot).filter((slot) => slot.id)
+    : [];
+  state.availableSlots = Number(payload.availableSlots || 0);
+  state.lastUpdatedAt = String(payload.lastUpdatedAt || "");
+  syncSelectedSlot();
+}
+
 async function loadPageData() {
   setStatus("กำลังโหลดรายชื่อผู้สมัครและข้อมูลผังจองเต็นท์...", "warning");
 
-  const [tentBookings, registrations] = await Promise.all([
+  const [meta, tentBookings, registrations] = await Promise.all([
+    api("/api/meta"),
     api("/api/tent-bookings"),
     api("/api/registrations"),
   ]);
 
-  state.slots = Array.isArray(tentBookings.slots) ? tentBookings.slots : [];
+  applyEventBrand(meta.eventBrand);
+  applyEventBrandToPage();
   state.registrations = sortRegistrations(
     Array.isArray(registrations.registrations) ? registrations.registrations : [],
   );
-  state.availableSlots = Number(tentBookings.availableSlots || 0);
-  state.lastUpdatedAt = String(tentBookings.lastUpdatedAt || "");
-  syncSelectedSlot();
+  applyTentBookingSnapshot(tentBookings);
   renderPage();
 
   if (state.registrations.length === 0) {
@@ -903,9 +1368,7 @@ async function saveTentBooking(slotId, registrationId) {
       body: JSON.stringify({ registrationId }),
     });
 
-    state.slots = Array.isArray(payload.slots) ? payload.slots : state.slots;
-    state.availableSlots = Number(payload.availableSlots || 0);
-    state.lastUpdatedAt = String(payload.lastUpdatedAt || new Date().toISOString());
+    applyTentBookingSnapshot(payload);
     state.selectedSlotId = slotId;
 
     if (selectedRegistration) {
@@ -918,6 +1381,93 @@ async function saveTentBooking(slotId, registrationId) {
   } finally {
     state.savingSlotId = "";
     syncSelectedSlot();
+    renderPage();
+  }
+}
+
+function buildClearedBookingCopy(count) {
+  return count > 0 ? ` และล้างการจอง ${count} ช่อง` : "";
+}
+
+async function toggleZoneLock(zoneCode, nextMode) {
+  const zoneConfig = getVenueZoneConfig(zoneCode);
+  if (!zoneConfig || (nextMode !== "lock" && nextMode !== "unlock")) {
+    return;
+  }
+
+  const bookedCount = nextMode === "lock"
+    ? getSlotsForZone(zoneCode).filter((slot) => slot.registrationId).length
+    : 0;
+  if (
+    bookedCount > 0 &&
+    !window.confirm(`โซน ${zoneCode} มีการจองอยู่ ${bookedCount} ช่อง ต้องการล็อกและล้างการจองเหล่านี้หรือไม่?`)
+  ) {
+    return;
+  }
+
+  state.pendingAvailabilityTarget = `zone:${zoneCode}`;
+  renderPage();
+
+  try {
+    setStatus(
+      nextMode === "lock" ? `กำลังล็อกโซน ${zoneCode}...` : `กำลังปลดล็อกโซน ${zoneCode}...`,
+      "warning",
+    );
+    const payload = await api(`/api/tent-bookings/zones/${encodeURIComponent(zoneCode)}/${nextMode}`, {
+      method: "PUT",
+    });
+
+    applyTentBookingSnapshot(payload);
+    setStatus(
+      `${
+        nextMode === "lock" ? `ล็อกโซน ${zoneCode}` : `ปลดล็อกโซน ${zoneCode}`
+      } เรียบร้อยแล้ว${buildClearedBookingCopy(Number(payload.clearedBookings || 0))}`,
+    );
+  } catch (error) {
+    setStatus(error.message, "danger");
+  } finally {
+    state.pendingAvailabilityTarget = "";
+    renderPage();
+  }
+}
+
+async function toggleSlotLock(slotId, nextMode) {
+  const slot = state.slots.find((item) => item.id === slotId);
+  if (!slot || (nextMode !== "lock" && nextMode !== "unlock")) {
+    return;
+  }
+
+  if (
+    nextMode === "lock" &&
+    slot.registrationId &&
+    !window.confirm(`เต็นท์ ${slot.label} มีการจองอยู่ ต้องการล็อกและล้างการจองนี้หรือไม่?`)
+  ) {
+    return;
+  }
+
+  state.pendingAvailabilityTarget = `slot:${slotId}`;
+  renderPage();
+
+  try {
+    setStatus(
+      nextMode === "lock" ? `กำลังล็อกเต็นท์ ${slotId}...` : `กำลังปลดล็อกเต็นท์ ${slotId}...`,
+      "warning",
+    );
+    const payload = await api(`/api/tent-bookings/slots/${encodeURIComponent(slotId)}/${nextMode}`, {
+      method: "PUT",
+    });
+
+    applyTentBookingSnapshot(payload);
+    state.selectedSlotId = slotId;
+    setStatus(
+      `${
+        nextMode === "lock" ? `ล็อกเต็นท์ ${slotId}` : `ปลดล็อกเต็นท์ ${slotId}`
+      } เรียบร้อยแล้ว${buildClearedBookingCopy(Number(payload.clearedBookings || 0))}`,
+    );
+  } catch (error) {
+    setStatus(error.message, "danger");
+  } finally {
+    state.pendingAvailabilityTarget = "";
     renderPage();
   }
 }
@@ -937,7 +1487,7 @@ function findClosestDataElement(target, key) {
 
 function handleSlotClick(target) {
   const slotId = target.dataset.slotId;
-  if (!slotId || target.dataset.bookable !== "true") {
+  if (!slotId) {
     return;
   }
 
@@ -955,7 +1505,7 @@ function handleSlotClick(target) {
 
 function handleEditorSelection(target) {
   const selectedSlot = getSelectedSlot();
-  if (!selectedSlot || !selectedSlot.isBookable) {
+  if (!selectedSlot || !selectedSlot.isBookable || isBusy()) {
     return;
   }
 
@@ -964,7 +1514,7 @@ function handleEditorSelection(target) {
 
 function handleClearSlotBooking() {
   const selectedSlot = getSelectedSlot();
-  if (!selectedSlot || !selectedSlot.isBookable || !selectedSlot.registrationId) {
+  if (!selectedSlot || !selectedSlot.isBookable || !selectedSlot.registrationId || isBusy()) {
     return;
   }
 
@@ -987,13 +1537,15 @@ function handlePrint() {
 function scrollMobileMapToZone(zoneCode, behavior = "auto") {
   const scroller = elements.tentMap?.querySelector(".venue-map-scroller");
   const board = elements.tentMap?.querySelector(".venue-map-board");
-  const focusView = MOBILE_ZONE_VIEWS[zoneCode] || MOBILE_ZONE_VIEWS.ALL;
+  const venueBoard = getVenueBoard();
+  const mobileViews = getVenueMobileViews();
+  const focusView = mobileViews[zoneCode] || mobileViews.ALL;
 
   if (!scroller || !board || !focusView) {
     return;
   }
 
-  const scale = board.clientWidth / SVG_BOARD.width;
+  const scale = board.clientWidth / venueBoard.width;
   const maxScrollLeft = Math.max(board.clientWidth - scroller.clientWidth, 0);
 
   if (zoneCode === "ALL" || maxScrollLeft === 0) {
@@ -1033,7 +1585,8 @@ function syncMobileZoneButtons() {
 
 function handleZoneFocus(target) {
   const zoneCode = target.dataset.zone;
-  if (!zoneCode || !MOBILE_ZONE_VIEWS[zoneCode]) {
+  const mobileViews = getVenueMobileViews();
+  if (!zoneCode || !mobileViews[zoneCode]) {
     return;
   }
 
@@ -1066,6 +1619,19 @@ function bindEvents() {
       return;
     }
 
+    if (clearButton?.dataset.action === "toggle-zone-lock") {
+      toggleZoneLock(clearButton.dataset.zone, clearButton.dataset.nextMode);
+      return;
+    }
+
+    if (clearButton?.dataset.action === "toggle-slot-lock") {
+      const selectedSlot = getSelectedSlot();
+      if (selectedSlot) {
+        toggleSlotLock(selectedSlot.id, clearButton.dataset.nextMode);
+      }
+      return;
+    }
+
     if (clearButton?.dataset.action === "focus-zone") {
       handleZoneFocus(clearButton);
       return;
@@ -1083,7 +1649,7 @@ function bindEvents() {
     }
 
     const slotButton = findClosestDataElement(event.target, "slotId");
-    if (!slotButton || slotButton.dataset.bookable !== "true") {
+    if (!slotButton) {
       return;
     }
 

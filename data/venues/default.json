@@ -1,0 +1,427 @@
+{
+  "id": "default",
+  "label": "ผังสนามหลัก",
+  "mobileBreakpoint": 720,
+  "board": {
+    "width": 1835,
+    "height": 1166,
+    "mobileViews": {
+      "ALL": { "x": 0, "width": 1835 },
+      "A": { "x": 72, "width": 390 },
+      "B": { "x": 0, "width": 340 },
+      "C": { "x": 330, "width": 1505 },
+      "D": { "x": 130, "width": 1510 }
+    },
+    "elements": [
+      {
+        "type": "defs",
+        "children": [
+          {
+            "type": "pattern",
+            "attrs": {
+              "id": "venue-grid-pattern",
+              "width": 54,
+              "height": 56,
+              "patternUnits": "userSpaceOnUse"
+            },
+            "children": [
+              {
+                "type": "path",
+                "attrs": {
+                  "d": "M 54 0 L 0 0 0 56",
+                  "class": "venue-svg-grid-line"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "rect",
+        "attrs": {
+          "x": 0.5,
+          "y": 0.5,
+          "width": 1834,
+          "height": 1165,
+          "class": "venue-svg-paper"
+        }
+      },
+      {
+        "type": "rect",
+        "attrs": {
+          "x": 0.5,
+          "y": 0.5,
+          "width": 1834,
+          "height": 1165,
+          "class": "venue-svg-grid"
+        }
+      },
+      {
+        "type": "line",
+        "attrs": {
+          "x1": 42,
+          "y1": 0,
+          "x2": 42,
+          "y2": 1166,
+          "class": "venue-svg-line"
+        }
+      },
+      {
+        "type": "line",
+        "attrs": {
+          "x1": 150,
+          "y1": 0,
+          "x2": 150,
+          "y2": 1166,
+          "class": "venue-svg-line"
+        }
+      },
+      {
+        "type": "line",
+        "attrs": {
+          "x1": 205,
+          "y1": 0,
+          "x2": 205,
+          "y2": 1166,
+          "class": "venue-svg-line"
+        }
+      },
+      {
+        "type": "text",
+        "attrs": {
+          "x": 21,
+          "y": 316,
+          "class": "venue-svg-gate",
+          "transform": "rotate(-90 21 316)"
+        },
+        "text": "ประตูแรก"
+      },
+      {
+        "type": "text",
+        "attrs": {
+          "x": 21,
+          "y": 876,
+          "class": "venue-svg-gate",
+          "transform": "rotate(-90 21 876)"
+        },
+        "text": "ประตูสอง"
+      },
+      {
+        "type": "rect",
+        "attrs": {
+          "x": 99,
+          "y": 7,
+          "width": 330,
+          "height": 111,
+          "class": "venue-svg-support"
+        }
+      },
+      {
+        "type": "text",
+        "attrs": {
+          "x": 264,
+          "y": 63,
+          "class": "venue-svg-support-label",
+          "text-anchor": "middle"
+        },
+        "text": "เต็นท์เก็บรถเพื่อตรวจสภาพ"
+      },
+      {
+        "type": "text",
+        "attrs": {
+          "x": 1470,
+          "y": 102,
+          "class": "venue-svg-parking-label",
+          "text-anchor": "middle"
+        },
+        "text": "ลานจอดรถ"
+      },
+      {
+        "type": "text",
+        "attrs": {
+          "x": 231,
+          "y": 206,
+          "class": "venue-svg-zone-label"
+        },
+        "text": "ZONE A"
+      },
+      {
+        "type": "text",
+        "attrs": {
+          "x": 146,
+          "y": 264,
+          "class": "venue-svg-zone-label"
+        },
+        "text": "ZONE B"
+      },
+      {
+        "type": "text",
+        "attrs": {
+          "x": 1415,
+          "y": 264,
+          "class": "venue-svg-zone-label venue-svg-zone-label--dark"
+        },
+        "text": "ZONE C"
+      },
+      {
+        "type": "text",
+        "attrs": {
+          "x": 95,
+          "y": 878,
+          "class": "venue-svg-zone-label"
+        },
+        "text": "ZONE D"
+      },
+      { "type": "zone-slots", "zone": "A" },
+      {
+        "type": "rect",
+        "attrs": {
+          "x": 45,
+          "y": 285,
+          "width": 269,
+          "height": 114,
+          "class": "venue-svg-support"
+        }
+      },
+      {
+        "type": "text",
+        "attrs": {
+          "x": 179.5,
+          "y": 347,
+          "class": "venue-svg-support-label",
+          "text-anchor": "middle"
+        },
+        "text": "ตรวจสภาพ"
+      },
+      { "type": "zone-slots", "zone": "B" },
+      {
+        "type": "g",
+        "attrs": { "class": "venue-svg-service-strip" },
+        "children": [
+          {
+            "type": "rect",
+            "attrs": {
+              "x": 45,
+              "y": 509,
+              "width": 105,
+              "height": 58,
+              "class": "venue-svg-service-cell"
+            }
+          },
+          {
+            "type": "rect",
+            "attrs": {
+              "x": 150,
+              "y": 509,
+              "width": 55,
+              "height": 58,
+              "class": "venue-svg-service-cell"
+            }
+          },
+          {
+            "type": "rect",
+            "attrs": {
+              "x": 205,
+              "y": 509,
+              "width": 109,
+              "height": 58,
+              "class": "venue-svg-service-cell"
+            }
+          },
+          {
+            "type": "text",
+            "attrs": {
+              "x": 97.5,
+              "y": 545,
+              "class": "venue-svg-service-label",
+              "text-anchor": "middle"
+            },
+            "text": "จุดตรวจรถ"
+          },
+          {
+            "type": "text",
+            "attrs": {
+              "x": 177.5,
+              "y": 545,
+              "class": "venue-svg-service-label",
+              "text-anchor": "middle"
+            },
+            "text": "รับสมัคร"
+          },
+          {
+            "type": "text",
+            "attrs": {
+              "x": 259.5,
+              "y": 545,
+              "class": "venue-svg-service-label",
+              "text-anchor": "middle"
+            },
+            "text": "คอนโทรล"
+          }
+        ]
+      },
+      { "type": "zone-slots", "zone": "C" },
+      {
+        "type": "rect",
+        "attrs": {
+          "x": 150,
+          "y": 566,
+          "width": 55,
+          "height": 224,
+          "class": "venue-svg-track-start"
+        }
+      },
+      {
+        "type": "text",
+        "attrs": {
+          "x": 177.5,
+          "y": 678,
+          "class": "venue-svg-track-start-label",
+          "transform": "rotate(-90 177.5 678)"
+        },
+        "text": "จุดสตาร์ท"
+      },
+      {
+        "type": "g",
+        "attrs": { "class": "venue-svg-track-board" },
+        "children": [
+          {
+            "type": "rect",
+            "attrs": {
+              "x": 205,
+              "y": 566,
+              "width": 1630,
+              "height": 224,
+              "class": "venue-svg-track"
+            }
+          },
+          {
+            "type": "line",
+            "attrs": {
+              "x1": 205,
+              "y1": 678,
+              "x2": 1835,
+              "y2": 678,
+              "class": "venue-svg-line"
+            }
+          },
+          {
+            "type": "text",
+            "attrs": {
+              "x": 290,
+              "y": 632,
+              "class": "venue-svg-track-label"
+            },
+            "text": "TRACK A"
+          },
+          {
+            "type": "text",
+            "attrs": {
+              "x": 290,
+              "y": 741,
+              "class": "venue-svg-track-label"
+            },
+            "text": "TRACK B"
+          },
+          {
+            "type": "event-title",
+            "attrs": {
+              "x": 1018,
+              "y": 636,
+              "class": "venue-svg-event-title",
+              "text-anchor": "middle"
+            }
+          },
+          {
+            "type": "event-subtitle",
+            "attrs": {
+              "x": 1018,
+              "y": 742,
+              "class": "venue-svg-event-subtitle",
+              "text-anchor": "middle"
+            }
+          }
+        ]
+      },
+      { "type": "zone-slots", "zone": "D" }
+    ]
+  },
+  "zones": [
+    {
+      "code": "A",
+      "label": "ZONE A",
+      "mobileLabel": "โซน A",
+      "count": 6,
+      "bookable": false,
+      "description": "โซนด้านบนใกล้ลานจอดรถ",
+      "layout": {
+        "x": 99,
+        "y": 118,
+        "width": 330,
+        "height": 56,
+        "columns": 6,
+        "accentPosition": "full",
+        "accentHeight": 56,
+        "labelY": 33,
+        "labelSize": 13
+      }
+    },
+    {
+      "code": "B",
+      "label": "ZONE B",
+      "mobileLabel": "โซน B",
+      "count": 5,
+      "bookable": false,
+      "description": "โซนด้านซ้ายใกล้พื้นที่บริการ",
+      "layout": {
+        "x": 45,
+        "y": 399,
+        "width": 269,
+        "height": 110,
+        "columns": 5,
+        "accentPosition": "full",
+        "accentHeight": 110,
+        "labelY": 60,
+        "labelSize": 13
+      }
+    },
+    {
+      "code": "C",
+      "label": "ZONE C",
+      "mobileLabel": "โซน C",
+      "count": 27,
+      "bookable": true,
+      "description": "โซนหลักแนวยาวกลางผัง",
+      "layout": {
+        "x": 376,
+        "y": 285,
+        "width": 1447,
+        "height": 282,
+        "columns": 27,
+        "accentPosition": "top",
+        "accentHeight": 112,
+        "labelY": 57,
+        "labelSize": 12
+      }
+    },
+    {
+      "code": "D",
+      "label": "ZONE D",
+      "mobileLabel": "โซน D",
+      "count": 26,
+      "bookable": true,
+      "description": "โซนด้านล่างใกล้ Track B",
+      "layout": {
+        "x": 210,
+        "y": 788,
+        "width": 1432,
+        "height": 223,
+        "columns": 26,
+        "accentPosition": "top",
+        "accentHeight": 112,
+        "labelY": 58,
+        "labelSize": 12
+      }
+    }
+  ]
+}

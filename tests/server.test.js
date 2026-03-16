@@ -176,6 +176,12 @@ async function run() {
     assert.equal(metaResult.response.status, 200);
     assert.ok(Array.isArray(metaResult.body.classes));
     assert.equal(metaResult.body.maxVehicles, 20);
+    assert.equal(
+      metaResult.body.eventBrand?.locationLine1,
+      "ณ สนามแข่งรถบ้านฉางเรสซิ่ง",
+    );
+    assert.equal(metaResult.body.eventBrand?.locationLine2, "จ.ระยอง");
+    assert.equal(metaResult.body.currentVenueId, "default");
 
     const registrationsResult = await requestJson(baseUrl, "/api/registrations");
     assert.equal(registrationsResult.response.status, 200);
@@ -184,6 +190,8 @@ async function run() {
     const tentBookingsResult = await requestJson(baseUrl, "/api/tent-bookings");
     assert.equal(tentBookingsResult.response.status, 200);
     assert.ok(Array.isArray(tentBookingsResult.body.slots));
+    assert.equal(tentBookingsResult.body.venue?.id, "default");
+    assert.ok(Array.isArray(tentBookingsResult.body.venue?.zones));
     assert.equal(tentBookingsResult.body.totalSlots, 64);
     assert.equal(tentBookingsResult.body.unavailableSlots, 11);
     assert.equal(tentBookingsResult.body.bookableSlots, 53);
@@ -208,16 +216,42 @@ async function run() {
       tentBookingsResult.body.slots.find((slot) => slot.id === "1D")?.isBookable,
       true,
     );
+    assert.equal(
+      tentBookingsResult.body.zones.find((zone) => zone.code === "A")?.isBookable,
+      false,
+    );
+    assert.equal(
+      tentBookingsResult.body.zones.find((zone) => zone.code === "A")?.availabilitySource,
+      "venue-locked",
+    );
 
     const createdClassName = `Smoke Class ${Date.now()}`;
     const renamedClassName = `${createdClassName} Updated`;
+    const updatedLocationLine1 = `ณ สนามทดสอบ ${Date.now()}`;
+    const updatedLocationLine2 = "จ.ชลบุรี";
 
-    let result = await requestJson(baseUrl, "/api/meta/classes", {
+    let result = await requestJson(baseUrl, "/api/meta/event-location", {
+      method: "PUT",
+      body: JSON.stringify({
+        locationLine1: updatedLocationLine1,
+        locationLine2: updatedLocationLine2,
+      }),
+    });
+    assert.equal(result.response.status, 200);
+    assert.equal(result.body.eventBrand.locationLine1, updatedLocationLine1);
+    assert.equal(result.body.eventBrand.locationLine2, updatedLocationLine2);
+
+    result = await requestJson(baseUrl, "/api/meta/classes", {
       method: "POST",
       body: JSON.stringify({ className: createdClassName }),
     });
     assert.equal(result.response.status, 201);
     assert.equal(result.body.className, createdClassName);
+
+    const refreshedMetaResult = await requestJson(baseUrl, "/api/meta");
+    assert.equal(refreshedMetaResult.response.status, 200);
+    assert.equal(refreshedMetaResult.body.eventBrand.locationLine1, updatedLocationLine1);
+    assert.equal(refreshedMetaResult.body.eventBrand.locationLine2, updatedLocationLine2);
 
     result = await requestJson(baseUrl, "/api/meta/classes/rename", {
       method: "PUT",
@@ -282,6 +316,70 @@ async function run() {
     assert.equal(result.body.slot.registrationId, registrationId);
     assert.equal(result.body.slot.applicantName, createPayload.applicantName);
     assert.equal(result.body.bookedSlots, initialBookedSlots + 1);
+
+    result = await requestJson(
+      baseUrl,
+      `/api/tent-bookings/slots/${encodeURIComponent(emptyTentSlotId)}/lock`,
+      {
+        method: "PUT",
+      },
+    );
+    assert.equal(result.response.status, 200);
+    assert.equal(result.body.slot.id, emptyTentSlotId);
+    assert.equal(result.body.slot.isBookable, false);
+    assert.equal(result.body.slot.registrationId, "");
+    assert.equal(result.body.slot.availabilitySource, "slot-locked");
+    assert.equal(result.body.clearedBookings, 1);
+    assert.equal(result.body.bookedSlots, initialBookedSlots);
+
+    result = await requestJson(
+      baseUrl,
+      `/api/tent-bookings/slots/${encodeURIComponent(emptyTentSlotId)}/unlock`,
+      {
+        method: "PUT",
+      },
+    );
+    assert.equal(result.response.status, 200);
+    assert.equal(result.body.slot.id, emptyTentSlotId);
+    assert.equal(result.body.slot.isBookable, true);
+    assert.equal(result.body.slot.availabilitySource, "slot-open");
+
+    result = await requestJson(baseUrl, "/api/tent-bookings/zones/A/unlock", {
+      method: "PUT",
+    });
+    assert.equal(result.response.status, 200);
+    assert.equal(result.body.zone.code, "A");
+    assert.equal(result.body.zone.isBookable, true);
+    assert.equal(result.body.zone.availabilitySource, "zone-open");
+    assert.equal(
+      result.body.slots.find((slot) => slot.id === "1A")?.isBookable,
+      true,
+    );
+
+    result = await requestJson(baseUrl, "/api/tent-bookings/1A", {
+      method: "PUT",
+      body: JSON.stringify({ registrationId }),
+    });
+    assert.equal(result.response.status, 200);
+    assert.equal(result.body.slot.id, "1A");
+    assert.equal(result.body.slot.registrationId, registrationId);
+
+    result = await requestJson(baseUrl, "/api/tent-bookings/zones/A/lock", {
+      method: "PUT",
+    });
+    assert.equal(result.response.status, 200);
+    assert.equal(result.body.zone.code, "A");
+    assert.equal(result.body.zone.isBookable, false);
+    assert.equal(result.body.zone.availabilitySource, "zone-locked");
+    assert.equal(result.body.clearedBookings, 1);
+    assert.equal(
+      result.body.slots.find((slot) => slot.id === "1A")?.registrationId,
+      "",
+    );
+    assert.equal(
+      result.body.slots.find((slot) => slot.id === "1A")?.isBookable,
+      false,
+    );
 
     result = await requestJson(baseUrl, "/api/tent-bookings/1B", {
       method: "PUT",

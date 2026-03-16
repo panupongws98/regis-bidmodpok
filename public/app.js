@@ -1,14 +1,14 @@
 ﻿const PRINT_COLUMNS_STORAGE_KEY = "drag-bike-print-columns";
 const BRACKET_SELECTIONS_STORAGE_KEY = "drag-bike-bracket-selections-v1";
 const TIMING_SHEET_STORAGE_KEY = "drag-bike-timing-sheet-v1";
-const EVENT_BRAND = {
+const DEFAULT_EVENT_BRAND = {
   name: "งานแข่งรถไฮสปีด บิดหมดปลอก",
-  subtitle: "ณ สนามแข่งรถบ้านฉางเรสซิ่ง จ.ระยอง",
-  fullName: "งานแข่งรถไฮสปีด บิดหมดปลอก ณ สนามแข่งรถบ้านฉางเรสซิ่ง จ.ระยอง",
+  locationLine1: "ณ สนามแข่งรถบ้านฉางเรสซิ่ง",
+  locationLine2: "จ.ระยอง",
   header: "ระบบจัดการผู้สมัครหน้างาน",
   logoPath: "/logo-bidmodplok.svg",
 };
-const EVENT_LOCKUP = EVENT_BRAND.fullName;
+const EVENT_BRAND = buildEventBrand(DEFAULT_EVENT_BRAND);
 const PRINT_COLUMN_DEFINITIONS = [
   { id: "rowNumber", label: "ลำดับ", header: "ลำดับ" },
   { id: "entryCode", label: "รหัสรายการ", header: "รหัสรายการ" },
@@ -91,6 +91,53 @@ const DEFAULT_STATUS_MESSAGES = {
   summary: "พร้อมสร้างหน้าสรุปและพิมพ์เอกสาร",
 };
 const REGISTRATIONS_PER_PAGE = 5;
+
+function readEventBrandText(value, fallback, options = {}) {
+  const { allowBlank = false } = options;
+  if (typeof value !== "string") {
+    return fallback;
+  }
+
+  const text = value.trim();
+  return allowBlank ? text : text || fallback;
+}
+
+function buildEventBrand(input = {}) {
+  const name = readEventBrandText(input.name, DEFAULT_EVENT_BRAND.name);
+  const locationLine1 = readEventBrandText(
+    input.locationLine1,
+    DEFAULT_EVENT_BRAND.locationLine1,
+  );
+  const locationLine2 = readEventBrandText(
+    input.locationLine2,
+    DEFAULT_EVENT_BRAND.locationLine2,
+    { allowBlank: true },
+  );
+  const header = readEventBrandText(input.header, DEFAULT_EVENT_BRAND.header);
+  const logoPath = readEventBrandText(input.logoPath, DEFAULT_EVENT_BRAND.logoPath);
+  const locationLines = [locationLine1, locationLine2].filter(Boolean);
+  const subtitle = locationLines.join(" ");
+  const fullName = [name, subtitle].filter(Boolean).join(" ");
+
+  return {
+    name,
+    locationLine1,
+    locationLine2,
+    locationLines,
+    subtitle,
+    fullName,
+    header,
+    logoPath,
+  };
+}
+
+function applyEventBrand(nextBrand) {
+  Object.assign(EVENT_BRAND, buildEventBrand(nextBrand));
+}
+
+function getEventLockup() {
+  return EVENT_BRAND.fullName;
+}
 
 function getPrintColumnDefinition(id) {
   return PRINT_COLUMN_DEFINITIONS.find((definition) => definition.id === id);
@@ -238,6 +285,9 @@ const elements = {
   classCountBadge: document.querySelector("#classCountBadge"),
   classForm: document.querySelector("#classForm"),
   classList: document.querySelector("#classList"),
+  eventLocationForm: document.querySelector("#eventLocationForm"),
+  eventLocationLine1Input: document.querySelector("#eventLocationLine1"),
+  eventLocationLine2Input: document.querySelector("#eventLocationLine2"),
   applicantEditModal: document.querySelector("#applicantEditModal"),
   closeApplicantEditModalButton: document.querySelector("#closeApplicantEditModalButton"),
   closeApplicantEditModalButtonSecondary: document.querySelector("#closeApplicantEditModalButtonSecondary"),
@@ -326,6 +376,28 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+}
+
+function applyEventBrandToPage() {
+  document.querySelectorAll(".hero-event").forEach((container) => {
+    container.innerHTML = EVENT_BRAND.locationLines
+      .map((line) => `<span class="hero-event-line">${escapeHtml(line)}</span>`)
+      .join("");
+  });
+
+  document.querySelectorAll(".hero-logo").forEach((image) => {
+    image.alt = EVENT_BRAND.fullName;
+  });
+}
+
+function syncEventLocationForm() {
+  if (hasElement("eventLocationLine1Input")) {
+    elements.eventLocationLine1Input.value = EVENT_BRAND.locationLine1;
+  }
+
+  if (hasElement("eventLocationLine2Input")) {
+    elements.eventLocationLine2Input.value = EVENT_BRAND.locationLine2;
+  }
 }
 
 function getEventLogoUrl() {
@@ -3316,6 +3388,9 @@ async function refreshData() {
     api("/api/registrations"),
   ]);
 
+  applyEventBrand(meta.eventBrand);
+  applyEventBrandToPage();
+  syncEventLocationForm();
   state.classes = meta.classes;
   state.maxVehicles = meta.maxVehicles;
   syncSummarySelection();
@@ -3705,7 +3780,7 @@ function printRegistration(registration) {
   const body = `
     <section class="sheet">
       ${buildPrintBrandBanner("ใบสมัคร")}
-      <h1>ใบสมัครแข่งขัน ${escapeHtml(EVENT_LOCKUP)}</h1>
+      <h1>ใบสมัครแข่งขัน ${escapeHtml(getEventLockup())}</h1>
       <p class="muted">พิมพ์เมื่อ ${escapeHtml(formatDate(new Date().toISOString()))}</p>
       <div class="row"><strong>ชื่อผู้สมัคร:</strong> ${escapeHtml(registration.applicantName)}</div>
       <div class="row"><strong>ที่อยู่:</strong> ${escapeHtml(registration.address)}</div>
@@ -3786,7 +3861,7 @@ function printAllRegistrations() {
   const body = `
     <section class="sheet">
       ${buildPrintBrandBanner("รายชื่อผู้สมัคร")}
-      <h1>รายการผู้สมัคร ${escapeHtml(EVENT_LOCKUP)}</h1>
+      <h1>รายการผู้สมัคร ${escapeHtml(getEventLockup())}</h1>
       <p class="muted">จำนวนรายการ ${registrations.length} รายการ</p>
       ${filterNote}
       <table>
@@ -3828,6 +3903,13 @@ async function addClass(className) {
   });
 }
 
+async function updateEventLocation(locationLine1, locationLine2) {
+  return api("/api/meta/event-location", {
+    method: "PUT",
+    body: JSON.stringify({ locationLine1, locationLine2 }),
+  });
+}
+
 async function renameClass(currentName, nextName) {
   return api("/api/meta/classes/rename", {
     method: "PUT",
@@ -3839,6 +3921,34 @@ async function deleteClass(className) {
   return api(`/api/meta/classes/${encodeURIComponent(className)}`, {
     method: "DELETE",
   });
+}
+
+async function handleEventLocationSubmit(event) {
+  event.preventDefault();
+  if (!hasElement("eventLocationLine1Input")) {
+    return;
+  }
+
+  const locationLine1 = elements.eventLocationLine1Input.value.trim();
+  const locationLine2 = hasElement("eventLocationLine2Input")
+    ? elements.eventLocationLine2Input.value.trim()
+    : "";
+
+  if (!locationLine1) {
+    setStatus("กรุณากรอกสถานที่บรรทัดแรก", "warning");
+    elements.eventLocationLine1Input.focus();
+    return;
+  }
+
+  try {
+    const result = await updateEventLocation(locationLine1, locationLine2);
+    applyEventBrand(result.eventBrand);
+    applyEventBrandToPage();
+    syncEventLocationForm();
+    setStatus("อัปเดตสถานที่จัดงานเรียบร้อยแล้ว");
+  } catch (error) {
+    setStatus(error.message, "danger");
+  }
 }
 
 async function handleClassSubmit(event) {
@@ -4102,6 +4212,7 @@ function bindEvents() {
     });
   });
   bindIfPresent(elements.classForm, "submit", handleClassSubmit);
+  bindIfPresent(elements.eventLocationForm, "submit", handleEventLocationSubmit);
   for (const field of REQUIRED_TEAM_CONTACT_FIELDS) {
     const input = getRegistrationFormField(field.name);
     bindIfPresent(input, "input", () => {

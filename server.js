@@ -10,9 +10,11 @@ const MAX_VEHICLES = 20;
 
 const PUBLIC_DIR = path.join(__dirname, "public");
 const DATA_DIR = path.join(__dirname, "data");
+const VENUES_DIR = path.join(DATA_DIR, "venues");
 const REGISTRATIONS_FILE = path.join(DATA_DIR, "registrations.json");
 const SETTINGS_FILE = path.join(DATA_DIR, "settings.json");
 const TENT_BOOKINGS_FILE = path.join(DATA_DIR, "tent-bookings.json");
+const DEFAULT_VENUE_ID = "default";
 
 const DEFAULT_CLASSES = [
   "รุ่น 56 ชัก 3 (ไฮสปีด)",
@@ -25,30 +27,13 @@ const DEFAULT_CLASSES = [
   "รุ่น 66 ชัก 5 มิล ตรอ (ไม่บังคับอะไหล่)",
   "รุ่น 67 ชักเดิม ตรอ (ไม่บังคับอะไหล่)",
 ];
-const TENT_ZONE_DEFINITIONS = [
-  { zone: "A", count: 6 },
-  { zone: "B", count: 5 },
-  { zone: "C", count: 27 },
-  { zone: "D", count: 26 },
-];
-const TENT_SLOTS = TENT_ZONE_DEFINITIONS.flatMap(({ zone, count }) => {
-  return Array.from({ length: count }, (_, index) => {
-    const label = `${index + 1}${zone}`;
-    return {
-      id: label,
-      label,
-      zone,
-      order: index + 1,
-    };
-  });
-});
-const TENT_SLOT_MAP = new Map(
-  TENT_SLOTS.map((slot) => [slot.id.toLowerCase(), slot]),
-);
-const UNAVAILABLE_TENT_SLOT_IDS = new Set(
-  TENT_SLOTS.filter((slot) => slot.zone === "A" || slot.zone === "B")
-    .map((slot) => slot.id.toLowerCase()),
-);
+const DEFAULT_EVENT_BRAND = {
+  name: "งานแข่งรถไฮสปีด บิดหมดปลอก",
+  locationLine1: "ณ สนามแข่งรถบ้านฉางเรสซิ่ง",
+  locationLine2: "จ.ระยอง",
+  header: "ระบบจัดการผู้สมัครหน้างาน",
+  logoPath: "/logo-bidmodplok.svg",
+};
 
 const CONTENT_TYPES = {
   ".css": "text/css; charset=utf-8",
@@ -94,6 +79,401 @@ function uniqueStrings(values) {
   });
 }
 
+function readConfiguredText(value, fallback, options = {}) {
+  const { allowBlank = false } = options;
+  if (typeof value !== "string") {
+    return fallback;
+  }
+
+  const text = value.trim();
+  return allowBlank ? text : text || fallback;
+}
+
+function buildEventBrand(eventBrand = {}) {
+  const name = readConfiguredText(eventBrand.name, DEFAULT_EVENT_BRAND.name);
+  const locationLine1 = readConfiguredText(
+    eventBrand.locationLine1,
+    DEFAULT_EVENT_BRAND.locationLine1,
+  );
+  const locationLine2 = readConfiguredText(
+    eventBrand.locationLine2,
+    DEFAULT_EVENT_BRAND.locationLine2,
+    { allowBlank: true },
+  );
+  const header = readConfiguredText(eventBrand.header, DEFAULT_EVENT_BRAND.header);
+  const logoPath = readConfiguredText(eventBrand.logoPath, DEFAULT_EVENT_BRAND.logoPath);
+  const locationLines = [locationLine1, locationLine2].filter(Boolean);
+  const subtitle = locationLines.join(" ");
+  const fullName = [name, subtitle].filter(Boolean).join(" ");
+
+  return {
+    name,
+    locationLine1,
+    locationLine2,
+    locationLines,
+    subtitle,
+    fullName,
+    header,
+    logoPath,
+  };
+}
+
+function serializeEventBrand(eventBrand) {
+  const normalized = buildEventBrand(eventBrand);
+  return {
+    name: normalized.name,
+    locationLine1: normalized.locationLine1,
+    locationLine2: normalized.locationLine2,
+    header: normalized.header,
+    logoPath: normalized.logoPath,
+  };
+}
+
+function serializeSettings(settings = {}) {
+  const classes = Array.isArray(settings.classes)
+    ? uniqueStrings(settings.classes.map(sanitizeText))
+    : [];
+  const currentVenueId = sanitizeText(settings.currentVenueId) || DEFAULT_VENUE_ID;
+  const venueAvailability = normalizeVenueAvailabilityStore(settings.venueAvailability);
+
+  return {
+    classes: classes.length > 0 ? classes : DEFAULT_CLASSES,
+    eventBrand: serializeEventBrand(settings.eventBrand),
+    currentVenueId,
+    venueAvailability,
+  };
+}
+
+function sanitizeZoneCode(value) {
+  return sanitizeText(value).toUpperCase();
+}
+
+function sanitizeTentSlotId(value) {
+  return sanitizeText(value).toUpperCase();
+}
+
+function normalizeVenueAvailabilityOverride(input = {}) {
+  const candidate = input && typeof input === "object" ? input : {};
+  const openZones = uniqueStrings(
+    (Array.isArray(candidate.openZones) ? candidate.openZones : []).map(sanitizeZoneCode),
+  );
+  const openZoneSet = new Set(openZones);
+  const lockedZones = uniqueStrings(
+    (Array.isArray(candidate.lockedZones) ? candidate.lockedZones : []).map(sanitizeZoneCode),
+  ).filter((zoneCode) => !openZoneSet.has(zoneCode));
+  const openSlots = uniqueStrings(
+    (Array.isArray(candidate.openSlots) ? candidate.openSlots : []).map(sanitizeTentSlotId),
+  );
+  const openSlotSet = new Set(openSlots);
+  const lockedSlots = uniqueStrings(
+    (Array.isArray(candidate.lockedSlots) ? candidate.lockedSlots : []).map(sanitizeTentSlotId),
+  ).filter((slotId) => !openSlotSet.has(slotId));
+
+  return {
+    lockedZones,
+    openZones,
+    lockedSlots,
+    openSlots,
+  };
+}
+
+function isVenueAvailabilityOverrideEmpty(override) {
+  return (
+    !override ||
+    (override.lockedZones || []).length === 0 &&
+      (override.openZones || []).length === 0 &&
+      (override.lockedSlots || []).length === 0 &&
+      (override.openSlots || []).length === 0
+  );
+}
+
+function normalizeVenueAvailabilityStore(input = {}) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return {};
+  }
+
+  const entries = [];
+  for (const [venueId, override] of Object.entries(input)) {
+    const normalizedVenueId = sanitizeText(venueId);
+    if (!normalizedVenueId) {
+      continue;
+    }
+
+    const normalizedOverride = normalizeVenueAvailabilityOverride(override);
+    if (isVenueAvailabilityOverrideEmpty(normalizedOverride)) {
+      continue;
+    }
+
+    entries.push([normalizedVenueId, normalizedOverride]);
+  }
+
+  return Object.fromEntries(entries);
+}
+
+function getVenueAvailabilityOverride(settings = {}, venueId = DEFAULT_VENUE_ID) {
+  const store = normalizeVenueAvailabilityStore(settings.venueAvailability);
+  const normalizedVenueId = sanitizeText(venueId) || DEFAULT_VENUE_ID;
+  return (
+    store[normalizedVenueId] ||
+    normalizeVenueAvailabilityOverride()
+  );
+}
+
+function getVenueFilePath(venueId) {
+  return path.join(VENUES_DIR, `${sanitizeText(venueId) || DEFAULT_VENUE_ID}.json`);
+}
+
+function getPositiveNumber(value, fallback) {
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+function normalizeVenueZoneDefinition(zone) {
+  const code = sanitizeText(zone?.code).toUpperCase();
+  const count = Number.parseInt(zone?.count, 10);
+  const layout = zone?.layout && typeof zone.layout === "object" ? zone.layout : {};
+
+  if (!code || !Number.isInteger(count) || count < 1) {
+    return null;
+  }
+
+  return {
+    code,
+    label: sanitizeText(zone?.label) || `ZONE ${code}`,
+    mobileLabel: sanitizeText(zone?.mobileLabel) || `โซน ${code}`,
+    count,
+    bookable: zone?.bookable !== false,
+    description: sanitizeText(zone?.description),
+    layout: {
+      x: getPositiveNumber(Number(layout.x), 0),
+      y: getPositiveNumber(Number(layout.y), 0),
+      width: getPositiveNumber(Number(layout.width), 1),
+      height: getPositiveNumber(Number(layout.height), 1),
+      columns: getPositiveNumber(Number.parseInt(layout.columns, 10), count),
+      accentPosition: sanitizeText(layout.accentPosition) || "top",
+      accentHeight: getPositiveNumber(Number(layout.accentHeight), 0),
+      labelY: getPositiveNumber(Number(layout.labelY), 24),
+      labelSize: getPositiveNumber(Number(layout.labelSize), 12),
+    },
+  };
+}
+
+function normalizeVenueDefinition(input = {}, requestedVenueId = DEFAULT_VENUE_ID) {
+  const board = input?.board && typeof input.board === "object" ? input.board : {};
+  const boardWidth = getPositiveNumber(Number(board.width), 1835);
+  const boardHeight = getPositiveNumber(Number(board.height), 1166);
+  const zones = Array.isArray(input?.zones)
+    ? input.zones.map(normalizeVenueZoneDefinition).filter(Boolean)
+    : [];
+  const boardMobileViews =
+    board.mobileViews && typeof board.mobileViews === "object" ? board.mobileViews : {};
+  const mobileViews = {
+    ALL: {
+      x: getPositiveNumber(Number(boardMobileViews.ALL?.x), 0) - 0,
+      width: getPositiveNumber(Number(boardMobileViews.ALL?.width), boardWidth),
+    },
+  };
+
+  for (const zone of zones) {
+    const mobileView = boardMobileViews[zone.code];
+    if (!mobileView || typeof mobileView !== "object") {
+      continue;
+    }
+
+    mobileViews[zone.code] = {
+      x: getPositiveNumber(Number(mobileView.x), 0) - 0,
+      width: getPositiveNumber(Number(mobileView.width), boardWidth),
+    };
+  }
+
+  return {
+    id: sanitizeText(input?.id) || sanitizeText(requestedVenueId) || DEFAULT_VENUE_ID,
+    label: sanitizeText(input?.label) || "ผังสนามหลัก",
+    mobileBreakpoint: getPositiveNumber(Number.parseInt(input?.mobileBreakpoint, 10), 720),
+    board: {
+      width: boardWidth,
+      height: boardHeight,
+      mobileViews,
+      elements: Array.isArray(board.elements) ? board.elements : [],
+    },
+    zones,
+  };
+}
+
+function buildVenueRuntime(definition, availabilityOverride = {}) {
+  const venue = normalizeVenueDefinition(definition);
+  const overrides = normalizeVenueAvailabilityOverride(availabilityOverride);
+  const lockedZoneSet = new Set(overrides.lockedZones);
+  const openZoneSet = new Set(overrides.openZones);
+  const lockedSlotSet = new Set(overrides.lockedSlots);
+  const openSlotSet = new Set(overrides.openSlots);
+  const zones = venue.zones.map((zone) => {
+    const availabilityOverrideMode = openZoneSet.has(zone.code)
+      ? "open"
+      : lockedZoneSet.has(zone.code)
+        ? "locked"
+        : "default";
+    const baseBookable = zone.bookable !== false;
+    const isBookable = availabilityOverrideMode === "open"
+      ? true
+      : availabilityOverrideMode === "locked"
+        ? false
+        : baseBookable;
+
+    return {
+      ...zone,
+      baseBookable,
+      isBookable,
+      availabilityOverride: availabilityOverrideMode,
+      availabilitySource:
+        availabilityOverrideMode !== "default"
+          ? `zone-${availabilityOverrideMode}`
+          : baseBookable
+            ? "venue-open"
+            : "venue-locked",
+    };
+  });
+  const zoneMap = new Map(zones.map((zone) => [zone.code, zone]));
+  const slots = zones.flatMap((zone) => {
+    return Array.from({ length: zone.count }, (_, index) => {
+      const label = `${index + 1}${zone.code}`;
+      const availabilityOverrideMode = openSlotSet.has(label)
+        ? "open"
+        : lockedSlotSet.has(label)
+          ? "locked"
+          : "default";
+      const isBookable = availabilityOverrideMode === "open"
+        ? true
+        : availabilityOverrideMode === "locked"
+          ? false
+          : zone.isBookable;
+
+      return {
+        id: label,
+        label,
+        zone: zone.code,
+        order: index + 1,
+        isBookable,
+        availabilityOverride: availabilityOverrideMode,
+        availabilitySource:
+          availabilityOverrideMode !== "default"
+            ? `slot-${availabilityOverrideMode}`
+            : zone.availabilityOverride !== "default"
+              ? `zone-${zone.availabilityOverride}`
+              : zone.baseBookable
+                ? "venue-open"
+                : "venue-locked",
+      };
+    });
+  });
+  const slotMap = new Map(slots.map((slot) => [slot.id.toLowerCase(), slot]));
+  const unavailableSlotIds = new Set(
+    slots.filter((slot) => !slot.isBookable).map((slot) => slot.id.toLowerCase()),
+  );
+
+  return {
+    ...venue,
+    availabilityOverride: overrides,
+    zones,
+    zoneMap,
+    slots,
+    slotMap,
+    unavailableSlotIds,
+  };
+}
+
+function serializeVenueZoneForClient(zone) {
+  return {
+    code: zone.code,
+    label: zone.label,
+    mobileLabel: zone.mobileLabel,
+    count: zone.count,
+    bookable: zone.bookable,
+    description: zone.description,
+    layout: zone.layout,
+    baseBookable: zone.baseBookable !== false,
+    isBookable: zone.isBookable !== false,
+    availabilityOverride: sanitizeText(zone.availabilityOverride) || "default",
+    availabilitySource: sanitizeText(zone.availabilitySource) || "venue-open",
+    totalSlots: Number.parseInt(zone.totalSlots, 10) || zone.count,
+    availableSlots: Number.parseInt(zone.availableSlots, 10) || 0,
+    bookedSlots: Number.parseInt(zone.bookedSlots, 10) || 0,
+    lockedSlots: Number.parseInt(zone.lockedSlots, 10) || 0,
+  };
+}
+
+function serializeVenueForClient(venue, zones = venue.zones) {
+  return {
+    id: venue.id,
+    label: venue.label,
+    mobileBreakpoint: venue.mobileBreakpoint,
+    board: venue.board,
+    zones: zones.map(serializeVenueZoneForClient),
+  };
+}
+
+function setZoneAvailabilityOverride(overrides, venue, zoneCode, action) {
+  const zone = venue.zoneMap.get(sanitizeZoneCode(zoneCode));
+  if (!zone) {
+    return null;
+  }
+
+  const normalized = normalizeVenueAvailabilityOverride(overrides);
+  const lockedZones = new Set(normalized.lockedZones);
+  const openZones = new Set(normalized.openZones);
+  const lockedSlots = new Set(normalized.lockedSlots);
+  const openSlots = new Set(normalized.openSlots);
+
+  lockedZones.delete(zone.code);
+  openZones.delete(zone.code);
+  if (action === "lock") {
+    lockedZones.add(zone.code);
+  } else {
+    openZones.add(zone.code);
+  }
+
+  for (const slot of venue.slots) {
+    if (slot.zone !== zone.code) {
+      continue;
+    }
+
+    lockedSlots.delete(slot.id);
+    openSlots.delete(slot.id);
+  }
+
+  return normalizeVenueAvailabilityOverride({
+    lockedZones: [...lockedZones],
+    openZones: [...openZones],
+    lockedSlots: [...lockedSlots],
+    openSlots: [...openSlots],
+  });
+}
+
+function setSlotAvailabilityOverride(overrides, slotId, action) {
+  const normalizedSlotId = sanitizeTentSlotId(slotId);
+  if (!normalizedSlotId) {
+    return null;
+  }
+
+  const normalized = normalizeVenueAvailabilityOverride(overrides);
+  const lockedSlots = new Set(normalized.lockedSlots);
+  const openSlots = new Set(normalized.openSlots);
+
+  lockedSlots.delete(normalizedSlotId);
+  openSlots.delete(normalizedSlotId);
+  if (action === "lock") {
+    lockedSlots.add(normalizedSlotId);
+  } else {
+    openSlots.add(normalizedSlotId);
+  }
+
+  return normalizeVenueAvailabilityOverride({
+    lockedZones: normalized.lockedZones,
+    openZones: normalized.openZones,
+    lockedSlots: [...lockedSlots],
+    openSlots: [...openSlots],
+  });
+}
+
 function findClassIndex(classes, className) {
   const target = normalizeText(className);
   return classes.findIndex((item) => normalizeText(item) === target);
@@ -110,6 +490,30 @@ function validateClassName(value) {
   }
 
   return className;
+}
+
+function validateEventLocationLine(value, label, options = {}) {
+  const { required = false, maxLength = 120 } = options;
+  const text = sanitizeText(value);
+
+  if (required && !text) {
+    throw new Error(`กรุณากรอก${label}`);
+  }
+
+  if (text.length > maxLength) {
+    throw new Error(`${label}ต้องไม่เกิน ${maxLength} ตัวอักษร`);
+  }
+
+  return text;
+}
+
+function validateEventLocation(payload) {
+  return {
+    locationLine1: validateEventLocationLine(payload?.locationLine1, "สถานที่บรรทัดแรก", {
+      required: true,
+    }),
+    locationLine2: validateEventLocationLine(payload?.locationLine2, "สถานที่บรรทัดที่สอง"),
+  };
 }
 
 function ensureClassNameAvailable(classes, className, ignoreIndex = -1) {
@@ -188,6 +592,7 @@ function normalizeRegistrationRecord(registration) {
 
 async function ensureDataFiles() {
   await fs.mkdir(DATA_DIR, { recursive: true });
+  await fs.mkdir(VENUES_DIR, { recursive: true });
 
   try {
     await fs.access(REGISTRATIONS_FILE);
@@ -200,7 +605,14 @@ async function ensureDataFiles() {
   } catch {
     await fs.writeFile(
       SETTINGS_FILE,
-      `${JSON.stringify({ classes: DEFAULT_CLASSES }, null, 2)}\n`,
+      `${JSON.stringify(
+        serializeSettings({
+          classes: DEFAULT_CLASSES,
+          eventBrand: DEFAULT_EVENT_BRAND,
+        }),
+        null,
+        2,
+      )}\n`,
       "utf8",
     );
   }
@@ -239,49 +651,89 @@ async function saveRegistrations(registrations) {
   await writeJson(REGISTRATIONS_FILE, normalized);
 }
 
+async function loadSettings() {
+  const settings = await readJson(SETTINGS_FILE, {});
+  return serializeSettings(settings);
+}
+
 async function loadClasses() {
-  const settings = await readJson(SETTINGS_FILE, { classes: DEFAULT_CLASSES });
-  const classes = Array.isArray(settings.classes)
-    ? uniqueStrings(settings.classes.map(sanitizeText))
-    : [];
-
-  if (classes.length > 0) {
-    return classes;
-  }
-
-  return DEFAULT_CLASSES;
+  const settings = await loadSettings();
+  return settings.classes;
 }
 
 async function saveClasses(classes) {
-  await writeJson(SETTINGS_FILE, { classes });
+  const settings = await loadSettings();
+  await writeJson(
+    SETTINGS_FILE,
+    serializeSettings({
+      ...settings,
+      classes,
+    }),
+  );
 }
 
-function findTentSlot(slotId) {
-  return TENT_SLOT_MAP.get(normalizeText(slotId)) || null;
+async function loadEventBrand() {
+  const settings = await loadSettings();
+  return settings.eventBrand;
 }
 
-function isTentSlotBookable(slotOrSlotId) {
-  const slot =
-    typeof slotOrSlotId === "string" ? findTentSlot(slotOrSlotId) : slotOrSlotId;
-  return Boolean(slot) && !UNAVAILABLE_TENT_SLOT_IDS.has(slot.id.toLowerCase());
+async function saveEventBrand(eventBrand) {
+  const settings = await loadSettings();
+  await writeJson(
+    SETTINGS_FILE,
+    serializeSettings({
+      ...settings,
+      eventBrand,
+    }),
+  );
 }
 
-function sortTentBookings(bookings) {
+async function loadVenue(venueId = DEFAULT_VENUE_ID, availabilityOverride = {}) {
+  const normalizedVenueId = sanitizeText(venueId) || DEFAULT_VENUE_ID;
+  const preferredVenue = await readJson(getVenueFilePath(normalizedVenueId), null);
+  const fallbackVenue = normalizedVenueId === DEFAULT_VENUE_ID
+    ? preferredVenue
+    : await readJson(getVenueFilePath(DEFAULT_VENUE_ID), null);
+
+  return buildVenueRuntime(
+    preferredVenue || fallbackVenue || { id: normalizedVenueId },
+    availabilityOverride,
+  );
+}
+
+async function loadCurrentVenue() {
+  const settings = await loadSettings();
+  return loadVenue(
+    settings.currentVenueId,
+    getVenueAvailabilityOverride(settings, settings.currentVenueId),
+  );
+}
+
+function findTentSlot(venue, slotId) {
+  return venue.slotMap.get(normalizeText(slotId)) || null;
+}
+
+function isTentSlotBookable(venue, slotOrSlotId) {
+  const slot = typeof slotOrSlotId === "string" ? findTentSlot(venue, slotOrSlotId) : slotOrSlotId;
+  return Boolean(slot) && !venue.unavailableSlotIds.has(slot.id.toLowerCase());
+}
+
+function sortTentBookings(venue, bookings) {
   return [...bookings].sort((left, right) => {
-    const leftSlot = findTentSlot(left.slotId);
-    const rightSlot = findTentSlot(right.slotId);
+    const leftSlot = findTentSlot(venue, left.slotId);
+    const rightSlot = findTentSlot(venue, right.slotId);
     const leftRank = leftSlot ? `${leftSlot.zone}-${String(leftSlot.order).padStart(2, "0")}` : "";
     const rightRank = rightSlot ? `${rightSlot.zone}-${String(rightSlot.order).padStart(2, "0")}` : "";
     return leftRank.localeCompare(rightRank);
   });
 }
 
-function normalizeTentBookingRecord(booking) {
+function normalizeTentBookingRecord(venue, booking) {
   const candidate = booking && typeof booking === "object" ? booking : {};
-  const slot = findTentSlot(candidate.slotId);
+  const slot = findTentSlot(venue, candidate.slotId);
   const registrationId = sanitizeText(candidate.registrationId);
 
-  if (!slot || !registrationId || !isTentSlotBookable(slot)) {
+  if (!slot || !registrationId || !isTentSlotBookable(venue, slot)) {
     return null;
   }
 
@@ -292,15 +744,23 @@ function normalizeTentBookingRecord(booking) {
   };
 }
 
-async function loadTentBookings() {
-  const bookings = await readJson(TENT_BOOKINGS_FILE, []);
-  if (!Array.isArray(bookings)) {
-    return [];
+function normalizeTentBookingStore(store, fallbackVenueId) {
+  if (Array.isArray(store)) {
+    return { [fallbackVenueId]: store };
   }
 
+  return store && typeof store === "object" ? { ...store } : {};
+}
+
+async function loadTentBookings(venue) {
+  const store = normalizeTentBookingStore(
+    await readJson(TENT_BOOKINGS_FILE, {}),
+    venue.id,
+  );
+  const bookings = Array.isArray(store[venue.id]) ? store[venue.id] : [];
   const bookingMap = new Map();
   for (const booking of bookings) {
-    const normalized = normalizeTentBookingRecord(booking);
+    const normalized = normalizeTentBookingRecord(venue, booking);
     if (!normalized) {
       continue;
     }
@@ -308,14 +768,18 @@ async function loadTentBookings() {
     bookingMap.set(normalized.slotId, normalized);
   }
 
-  return sortTentBookings([...bookingMap.values()]);
+  return sortTentBookings(venue, [...bookingMap.values()]);
 }
 
-async function saveTentBookings(bookings) {
+async function saveTentBookings(venue, bookings) {
+  const store = normalizeTentBookingStore(
+    await readJson(TENT_BOOKINGS_FILE, {}),
+    venue.id,
+  );
   const bookingMap = new Map();
   if (Array.isArray(bookings)) {
     for (const booking of bookings) {
-      const normalized = normalizeTentBookingRecord(booking);
+      const normalized = normalizeTentBookingRecord(venue, booking);
       if (!normalized) {
         continue;
       }
@@ -324,10 +788,11 @@ async function saveTentBookings(bookings) {
     }
   }
 
-  await writeJson(TENT_BOOKINGS_FILE, sortTentBookings([...bookingMap.values()]));
+  store[venue.id] = sortTentBookings(venue, [...bookingMap.values()]);
+  await writeJson(TENT_BOOKINGS_FILE, store);
 }
 
-function filterTentBookingsByRegistrations(bookings, registrations) {
+function filterTentBookingsByRegistrations(venue, bookings, registrations) {
   const validRegistrationIds = new Set(
     registrations.map((registration) => registration.id),
   );
@@ -335,20 +800,38 @@ function filterTentBookingsByRegistrations(bookings, registrations) {
   return bookings.filter((booking) => {
     return (
       validRegistrationIds.has(booking.registrationId) &&
-      isTentSlotBookable(booking.slotId)
+      isTentSlotBookable(venue, booking.slotId)
     );
   });
 }
 
-function buildTentSlotPayload(bookings, registrations) {
+function buildTentSlotPayload(venue, bookings, registrations) {
   const registrationsById = new Map(
     registrations.map((registration) => [registration.id, registration]),
   );
   const bookingsBySlotId = new Map(
     bookings.map((booking) => [booking.slotId, booking]),
   );
+  const zones = venue.zones.map((zone) => {
+    const zoneSlots = venue.slots.filter((slot) => slot.zone === zone.code);
+    const lockedSlots = zoneSlots.filter((slot) => !slot.isBookable).length;
+    const bookedSlots = zoneSlots.filter((slot) => {
+      return slot.isBookable && bookingsBySlotId.has(slot.id);
+    }).length;
+    const availableSlots = zoneSlots.filter((slot) => {
+      return slot.isBookable && !bookingsBySlotId.has(slot.id);
+    }).length;
 
-  const slots = TENT_SLOTS.map((slot) => {
+    return {
+      ...zone,
+      totalSlots: zoneSlots.length,
+      lockedSlots,
+      bookedSlots,
+      availableSlots,
+    };
+  });
+
+  const slots = venue.slots.map((slot) => {
     const booking = bookingsBySlotId.get(slot.id);
     const registration = booking ? registrationsById.get(booking.registrationId) : null;
 
@@ -357,7 +840,10 @@ function buildTentSlotPayload(bookings, registrations) {
       label: slot.label,
       zone: slot.zone,
       order: slot.order,
-      isBookable: isTentSlotBookable(slot),
+      isBookable: slot.isBookable !== false,
+      isLocked: slot.isBookable === false,
+      availabilityOverride: sanitizeText(slot.availabilityOverride) || "default",
+      availabilitySource: sanitizeText(slot.availabilitySource) || "venue-open",
       registrationId: registration?.id || "",
       applicantName: registration?.applicantName || "",
       contactPhone: registration?.contactPhone || "",
@@ -372,7 +858,8 @@ function buildTentSlotPayload(bookings, registrations) {
   }, "");
 
   return {
-    zones: TENT_ZONE_DEFINITIONS,
+    venue: serializeVenueForClient(venue, zones),
+    zones,
     slots,
     totalSlots: slots.length,
     bookableSlots,
@@ -438,6 +925,60 @@ async function parseJsonBodyOrSendError(request, response) {
     sendError(response, 400, "รูปแบบข้อมูลไม่ถูกต้อง");
     return null;
   }
+}
+
+async function updateCurrentVenueAvailability(action, targetKind, targetId) {
+  const settings = await loadSettings();
+  const currentVenueId = settings.currentVenueId;
+  const currentOverride = getVenueAvailabilityOverride(settings, currentVenueId);
+  const currentVenue = await loadVenue(currentVenueId, currentOverride);
+
+  const nextOverride = targetKind === "zone"
+    ? setZoneAvailabilityOverride(currentOverride, currentVenue, targetId, action)
+    : setSlotAvailabilityOverride(currentOverride, targetId, action);
+
+  if (!nextOverride) {
+    return null;
+  }
+
+  const [registrations, currentTentBookings] = await Promise.all([
+    loadRegistrations(),
+    loadTentBookings(currentVenue),
+  ]);
+  const validTentBookings = filterTentBookingsByRegistrations(
+    currentVenue,
+    currentTentBookings,
+    registrations,
+  );
+  const nextVenueAvailability = {
+    ...normalizeVenueAvailabilityStore(settings.venueAvailability),
+  };
+
+  if (isVenueAvailabilityOverrideEmpty(nextOverride)) {
+    delete nextVenueAvailability[currentVenue.id];
+  } else {
+    nextVenueAvailability[currentVenue.id] = nextOverride;
+  }
+
+  await writeJson(
+    SETTINGS_FILE,
+    serializeSettings({
+      ...settings,
+      venueAvailability: nextVenueAvailability,
+    }),
+  );
+
+  const nextVenue = await loadVenue(currentVenue.id, nextOverride);
+  const nextTentBookings = validTentBookings.filter((booking) => {
+    return isTentSlotBookable(nextVenue, booking.slotId);
+  });
+
+  await saveTentBookings(nextVenue, nextTentBookings);
+
+  return {
+    clearedBookings: validTentBookings.length - nextTentBookings.length,
+    payload: buildTentSlotPayload(nextVenue, nextTentBookings, registrations),
+  };
 }
 
 function validateClasses(input) {
@@ -587,8 +1128,33 @@ function validateRegistration(payload, classes, registrations, currentId = null)
 
 async function handleApi(request, response, url) {
   if (request.method === "GET" && url.pathname === "/api/meta") {
-    const classes = await loadClasses();
-    return sendJson(response, 200, { classes, maxVehicles: MAX_VEHICLES });
+    const settings = await loadSettings();
+    return sendJson(response, 200, {
+      classes: settings.classes,
+      maxVehicles: MAX_VEHICLES,
+      eventBrand: settings.eventBrand,
+      currentVenueId: settings.currentVenueId,
+    });
+  }
+
+  if (request.method === "PUT" && url.pathname === "/api/meta/event-location") {
+    const body = await parseJsonBodyOrSendError(request, response);
+    if (body === null) {
+      return;
+    }
+
+    try {
+      const currentEventBrand = await loadEventBrand();
+      const nextEventBrand = buildEventBrand({
+        ...currentEventBrand,
+        ...validateEventLocation(body),
+      });
+
+      await saveEventBrand(nextEventBrand);
+      return sendJson(response, 200, { eventBrand: nextEventBrand });
+    } catch (error) {
+      return sendError(response, 400, error.message);
+    }
   }
 
   if (request.method === "POST" && url.pathname === "/api/meta/classes") {
@@ -759,24 +1325,72 @@ async function handleApi(request, response, url) {
   }
 
   if (request.method === "GET" && url.pathname === "/api/tent-bookings") {
-    const [registrations, tentBookings] = await Promise.all([
+    const [venue, registrations] = await Promise.all([
+      loadCurrentVenue(),
       loadRegistrations(),
-      loadTentBookings(),
     ]);
+    const tentBookings = await loadTentBookings(venue);
     const validTentBookings = filterTentBookingsByRegistrations(
+      venue,
       tentBookings,
       registrations,
     );
 
     if (validTentBookings.length !== tentBookings.length) {
-      await saveTentBookings(validTentBookings);
+      await saveTentBookings(venue, validTentBookings);
     }
 
     return sendJson(
       response,
       200,
-      buildTentSlotPayload(validTentBookings, registrations),
+      buildTentSlotPayload(venue, validTentBookings, registrations),
     );
+  }
+
+  const tentZoneActionMatch = url.pathname.match(/^\/api\/tent-bookings\/zones\/([^/]+)\/(lock|unlock)$/);
+  if (request.method === "PUT" && tentZoneActionMatch) {
+    const zoneCode = sanitizeZoneCode(decodeURIComponent(tentZoneActionMatch[1]));
+    const action = tentZoneActionMatch[2];
+    const venue = await loadCurrentVenue();
+
+    if (!venue.zoneMap.has(zoneCode)) {
+      return sendError(response, 404, "ไม่พบโซนที่ต้องการอัปเดต");
+    }
+
+    const result = await updateCurrentVenueAvailability(action, "zone", zoneCode);
+    if (!result) {
+      return sendError(response, 400, "ไม่สามารถอัปเดตสถานะโซนได้");
+    }
+
+    return sendJson(response, 200, {
+      ...result.payload,
+      action,
+      clearedBookings: result.clearedBookings,
+      zone: result.payload.zones.find((item) => item.code === zoneCode) || null,
+    });
+  }
+
+  const tentSlotActionMatch = url.pathname.match(/^\/api\/tent-bookings\/slots\/([^/]+)\/(lock|unlock)$/);
+  if (request.method === "PUT" && tentSlotActionMatch) {
+    const slotId = sanitizeTentSlotId(decodeURIComponent(tentSlotActionMatch[1]));
+    const action = tentSlotActionMatch[2];
+    const venue = await loadCurrentVenue();
+
+    if (!findTentSlot(venue, slotId)) {
+      return sendError(response, 404, "ไม่พบเต็นท์ที่ต้องการอัปเดต");
+    }
+
+    const result = await updateCurrentVenueAvailability(action, "slot", slotId);
+    if (!result) {
+      return sendError(response, 400, "ไม่สามารถอัปเดตสถานะเต็นท์ได้");
+    }
+
+    return sendJson(response, 200, {
+      ...result.payload,
+      action,
+      clearedBookings: result.clearedBookings,
+      slot: result.payload.slots.find((item) => item.id === slotId) || null,
+    });
   }
 
   const tentRouteMatch = url.pathname.match(/^\/api\/tent-bookings\/([^/]+)$/);
@@ -786,27 +1400,29 @@ async function handleApi(request, response, url) {
       return;
     }
 
-    const slot = findTentSlot(decodeURIComponent(tentRouteMatch[1]));
+    const venue = await loadCurrentVenue();
+    const slot = findTentSlot(venue, decodeURIComponent(tentRouteMatch[1]));
     if (!slot) {
       return sendError(response, 404, "ไม่พบเต็นท์ที่ต้องการบันทึก");
     }
 
-    if (!isTentSlotBookable(slot)) {
+    if (!isTentSlotBookable(venue, slot)) {
       return sendError(response, 400, "เต็นท์ช่องนี้ไม่เปิดให้จอง");
     }
 
     const registrationId = sanitizeText(body.registrationId);
     const [registrations, tentBookings] = await Promise.all([
       loadRegistrations(),
-      loadTentBookings(),
+      loadTentBookings(venue),
     ]);
     const validTentBookings = filterTentBookingsByRegistrations(
+      venue,
       tentBookings,
       registrations,
     );
 
     if (validTentBookings.length !== tentBookings.length) {
-      await saveTentBookings(validTentBookings);
+      await saveTentBookings(venue, validTentBookings);
     }
 
     if (registrationId) {
@@ -825,9 +1441,9 @@ async function handleApi(request, response, url) {
       });
     }
 
-    await saveTentBookings(nextTentBookings);
+    await saveTentBookings(venue, nextTentBookings);
 
-    const payload = buildTentSlotPayload(nextTentBookings, registrations);
+    const payload = buildTentSlotPayload(venue, nextTentBookings, registrations);
     return sendJson(response, 200, {
       ...payload,
       slot: payload.slots.find((item) => item.id === slot.id) || null,
@@ -885,14 +1501,15 @@ async function handleApi(request, response, url) {
 
   if (request.method === "DELETE") {
     registrations.splice(index, 1);
-    const tentBookings = await loadTentBookings();
+    const venue = await loadCurrentVenue();
+    const tentBookings = await loadTentBookings(venue);
     const nextTentBookings = tentBookings.filter((booking) => {
       return booking.registrationId !== registrationId;
     });
     await Promise.all([
       saveRegistrations(registrations),
       nextTentBookings.length !== tentBookings.length
-        ? saveTentBookings(nextTentBookings)
+        ? saveTentBookings(venue, nextTentBookings)
         : Promise.resolve(),
     ]);
     return sendJson(response, 200, { success: true });
@@ -1021,6 +1638,7 @@ function listen(server, port, host) {
 
 async function start({ host = HOST, port = DEFAULT_PORT } = {}) {
   await ensureDataFiles();
+  const eventBrand = await loadEventBrand();
 
   const server = createServer();
   await listen(server, port, host);
@@ -1030,7 +1648,7 @@ async function start({ host = HOST, port = DEFAULT_PORT } = {}) {
     address && typeof address === "object" ? address.port : port;
 
   console.log(
-    `งานแข่งรถไฮสปีด บิดหมดปลอก ณ สนามแข่งรถบ้านฉางเรสซิ่ง จ.ระยอง app started at http://${host}:${activePort}`
+    `${eventBrand.fullName} app started at http://${host}:${activePort}`
   );
 
   return server;

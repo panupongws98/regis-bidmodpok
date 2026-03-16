@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>จัดรุ่นแข่งขัน | งานแข่งรถไฮสปีด บิดหมดปลอก</title>
-    <link rel="stylesheet" href="/styles.css?v=20260316-hero-mobile-stack-fix" />
+    <link rel="stylesheet" href="/styles.css?v=20260316-event-location-settings" />
   </head>
   <body data-page="classes">
     <div class="page-shell">
@@ -94,6 +94,47 @@
             พร้อมจัดการรุ่นแข่งขัน
           </div>
 
+          <section class="toolbar-surface class-manager-body class-manager-body-standalone">
+            <div class="class-manager-header">
+              <div>
+                <h3>ตั้งค่าสถานที่จัดงาน</h3>
+                <p class="event-settings-copy">
+                  แก้สถานที่ตรงนี้ครั้งเดียว แล้วหัวเว็บ เอกสารพิมพ์ และข้อความอ้างอิงสถานที่ของทั้งระบบจะอัปเดตตามทันที
+                </p>
+              </div>
+              <span class="badge badge-soft">Event Location</span>
+            </div>
+
+            <form id="eventLocationForm" class="form-grid">
+              <label class="field">
+                <span>สถานที่บรรทัดแรก</span>
+                <input
+                  id="eventLocationLine1"
+                  type="text"
+                  placeholder="เช่น ณ สนามแข่งรถบ้านฉางเรสซิ่ง"
+                  maxlength="120"
+                  required
+                />
+              </label>
+
+              <label class="field">
+                <span>สถานที่บรรทัดที่สอง</span>
+                <input
+                  id="eventLocationLine2"
+                  type="text"
+                  placeholder="เช่น จ.ระยอง"
+                  maxlength="120"
+                />
+              </label>
+
+              <div class="field field--wide event-settings-actions">
+                <button class="button button-secondary" type="submit">
+                  บันทึกสถานที่จัดงาน
+                </button>
+              </div>
+            </form>
+          </section>
+
           <div class="class-manager-body class-manager-body-standalone">
             <div class="class-manager-header">
               <div>
@@ -124,6 +165,6 @@
       </main>
     </div>
 
-    <script src="/app.js?v=20260316-timing-sheet-fit"></script>
+    <script src="/app.js?v=20260316-event-location-settings"></script>
   </body>
 </html>

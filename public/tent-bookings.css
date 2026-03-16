@@ -127,6 +127,12 @@
   gap: 12px;
 }
 
+.tent-mobile-zone-card {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
 .tent-mobile-zone-button {
   display: grid;
   gap: 6px;
@@ -179,6 +185,22 @@
     linear-gradient(145deg, rgba(255, 196, 71, 0.22), rgba(255, 255, 255, 0.06)),
     rgba(255, 255, 255, 0.08);
   box-shadow: 0 16px 28px rgba(255, 196, 71, 0.08);
+}
+
+.tent-mobile-zone-footer {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+
+.tent-mobile-zone-state {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.tent-mobile-zone-action {
+  width: 100%;
 }
 
 .venue-map-workspace {
@@ -261,6 +283,11 @@
 .tent-selection-pill.is-open {
   background: rgba(89, 215, 157, 0.16);
   color: #b7f3d4;
+}
+
+.tent-selection-pill.is-locked {
+  background: rgba(255, 196, 71, 0.16);
+  color: #ffd88a;
 }
 
 .tent-selection-team {
@@ -702,7 +729,12 @@
 .venue-editor-actions {
   display: flex;
   gap: 10px;
+  flex-wrap: wrap;
   margin-top: 12px;
+}
+
+.venue-editor-actions .button {
+  flex: 1 1 180px;
 }
 
 .tent-map-empty {
@@ -778,9 +810,13 @@
     scroll-snap-type: x proximity;
   }
 
-  .tent-mobile-zone-button {
-    flex: 0 0 220px;
+  .tent-mobile-zone-card {
+    flex: 0 0 240px;
     scroll-snap-align: start;
+  }
+
+  .tent-mobile-zone-button {
+    width: 100%;
   }
 
   .tent-mobile-zone-list::-webkit-scrollbar {
@@ -810,6 +846,7 @@
 
   .venue-editor-actions .button {
     width: 100%;
+    flex-basis: auto;
   }
 }
 
@@ -951,8 +988,7 @@
 }
 
 .venue-svg-slot.is-locked {
-  cursor: default;
-  pointer-events: none;
+  cursor: pointer;
 }
 
 .venue-svg-slot-frame {

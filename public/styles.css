@@ -923,6 +923,18 @@ body.modal-open {
   margin-top: 18px;
 }
 
+.event-settings-copy {
+  max-width: 62ch;
+  margin: 8px 0 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.event-settings-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .class-manager-header,
 .print-config-header {
   display: flex;
