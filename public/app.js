@@ -565,6 +565,14 @@ function getRegistrationTotalVehicleCount(registration) {
   }, 0);
 }
 
+function buildBikeNumberRegistryKey(raceClass, bikeNumber) {
+  const normalizedClassName = normalizeText(raceClass);
+  const normalizedBikeNumber = normalizeText(bikeNumber);
+  return normalizedClassName && normalizedBikeNumber
+    ? `${normalizedClassName}::${normalizedBikeNumber}`
+    : "";
+}
+
 function buildBikeNumberRegistry(excludeRegistrationId = state.editingId) {
   const registry = new Map();
 
@@ -574,76 +582,95 @@ function buildBikeNumberRegistry(excludeRegistrationId = state.editingId) {
     }
 
     const applicantName = String(registration.applicantName || "").trim() || "ทีมไม่ระบุชื่อ";
-    for (const bikeNumber of getRegistrationAllBikeNumbers(registration)) {
-      const normalizedBikeNumber = normalizeText(bikeNumber);
-      if (!normalizedBikeNumber) {
+    for (const entry of registration.entries || []) {
+      const raceClass = String(entry.raceClass || "").trim();
+      if (!raceClass) {
         continue;
       }
 
-      const existingWarning = registry.get(normalizedBikeNumber) || {
-        bikeNumber: bikeNumber.trim(),
-        applicantNames: [],
-      };
-      if (!existingWarning.applicantNames.includes(applicantName)) {
-        existingWarning.applicantNames.push(applicantName);
+      for (const bikeNumber of entry.bikeNumbers || []) {
+        const normalizedKey = buildBikeNumberRegistryKey(raceClass, bikeNumber);
+        if (!normalizedKey) {
+          continue;
+        }
+
+        const existingConflict = registry.get(normalizedKey) || {
+          raceClass,
+          bikeNumber: String(bikeNumber || "").trim(),
+          applicantNames: [],
+        };
+        if (!existingConflict.applicantNames.includes(applicantName)) {
+          existingConflict.applicantNames.push(applicantName);
+        }
+        registry.set(normalizedKey, existingConflict);
       }
-      registry.set(normalizedBikeNumber, existingWarning);
     }
   }
 
   return registry;
 }
 
-function getDuplicateBikeNumberWarnings(entries, options = {}) {
+function getDuplicateBikeNumberConflicts(entries, options = {}) {
   const registry = buildBikeNumberRegistry(options.excludeRegistrationId);
 
   return entries.map((entry) => {
-    const warnings = [];
-    const seenBikeNumbers = new Set();
-
-    for (const bikeNumber of entry.bikeNumbers || []) {
-      const normalizedBikeNumber = normalizeText(bikeNumber);
-      if (!normalizedBikeNumber || seenBikeNumbers.has(normalizedBikeNumber)) {
-        continue;
-      }
-
-      const warning = registry.get(normalizedBikeNumber);
-      if (!warning) {
-        continue;
-      }
-
-      warnings.push({
-        bikeNumber: bikeNumber.trim() || warning.bikeNumber,
-        applicantNames: [...warning.applicantNames],
-      });
-      seenBikeNumbers.add(normalizedBikeNumber);
+    const conflicts = [];
+    const raceClass = String(entry.raceClass || "").trim();
+    if (!raceClass) {
+      return conflicts;
     }
 
-    return warnings;
+    const seenKeys = new Set();
+
+    for (const bikeNumber of entry.bikeNumbers || []) {
+      const normalizedKey = buildBikeNumberRegistryKey(raceClass, bikeNumber);
+      if (!normalizedKey || seenKeys.has(normalizedKey)) {
+        continue;
+      }
+
+      const conflict = registry.get(normalizedKey);
+      if (!conflict) {
+        continue;
+      }
+
+      conflicts.push({
+        raceClass,
+        bikeNumber: String(bikeNumber || "").trim() || conflict.bikeNumber,
+        applicantNames: [],
+      });
+      conflicts[conflicts.length - 1].applicantNames = [...conflict.applicantNames];
+      seenKeys.add(normalizedKey);
+    }
+
+    return conflicts;
   });
 }
 
-function formatBikeNumberWarnings(warnings, maxItems = 3) {
-  if (!Array.isArray(warnings) || warnings.length === 0) {
+function formatBikeNumberConflicts(conflicts, maxItems = 3, options = {}) {
+  if (!Array.isArray(conflicts) || conflicts.length === 0) {
     return "";
   }
 
-  const visibleWarnings = warnings.slice(0, maxItems).map((warning) => {
-    const visibleApplicantNames = warning.applicantNames
+  const { includeClassName = false } = options;
+  const visibleConflicts = conflicts.slice(0, maxItems).map((conflict) => {
+    const visibleApplicantNames = conflict.applicantNames
       .slice(0, 2)
       .map((name) => shortenText(name, 28));
-    const extraApplicantCount = Math.max(0, warning.applicantNames.length - visibleApplicantNames.length);
+    const extraApplicantCount = Math.max(0, conflict.applicantNames.length - visibleApplicantNames.length);
     const applicantLabel = visibleApplicantNames.length > 0
       ? `${visibleApplicantNames.join(", ")}${extraApplicantCount > 0 ? ` และอีก ${extraApplicantCount} ทีม` : ""}`
       : "";
+    const bikeLabel = includeClassName && conflict.raceClass
+      ? `${conflict.raceClass} เลข ${conflict.bikeNumber}`
+      : conflict.bikeNumber;
 
     return applicantLabel
-      ? `${warning.bikeNumber} (${applicantLabel})`
-      : warning.bikeNumber;
+      ? `${bikeLabel} (${applicantLabel})`
+      : bikeLabel;
   });
 
-  const extraWarningCount = Math.max(0, warnings.length - visibleWarnings.length);
-  return `${visibleWarnings.join(", ")}${extraWarningCount > 0 ? ` และอีก ${extraWarningCount} เลข` : ""}`;
+  const extraConflictCount = Math.max(0, conflicts.length - visibleConflicts.length);
+  return `${visibleConflicts.join(", ")}${extraConflictCount > 0 ? ` และอีก ${extraConflictCount} เลข` : ""}`;
 }
 
 function shortenText(value, maxLength) {
@@ -967,17 +994,17 @@ function renderClassEntries(entries = [createEmptyRegistrationEntry()]) {
 
   const normalizedEntries = (entries.length > 0 ? entries : [createEmptyRegistrationEntry()])
     .map((entry) => normalizeDraftRegistrationEntry(entry));
-  const duplicateBikeNumberWarnings = getDuplicateBikeNumberWarnings(normalizedEntries);
+  const duplicateBikeNumberConflicts = getDuplicateBikeNumberConflicts(normalizedEntries);
 
   elements.classEntriesContainer.innerHTML = normalizedEntries
     .map((entry, index) => {
-      const entryWarnings = duplicateBikeNumberWarnings[index] || [];
-      const warningSummary = formatBikeNumberWarnings(entryWarnings, 4);
-      const warningMarkup = entryWarnings.length > 0
+      const entryConflicts = duplicateBikeNumberConflicts[index] || [];
+      const conflictSummary = formatBikeNumberConflicts(entryConflicts, 4);
+      const conflictMarkup = entryConflicts.length > 0
         ? `
           <div class="duplicate-number-warning" role="note">
-            <strong>เตือน: เลขรถซ้ำกับทีมอื่น แต่ยังบันทึกได้</strong>
-            <span>พบเลขซ้ำ: ${escapeHtml(warningSummary)}</span>
+            <strong>เลขรถซ้ำกับทีมอื่นในรุ่นนี้ ระบบจะไม่ยอมบันทึก</strong>
+            <span>พบเลขซ้ำ: ${escapeHtml(conflictSummary)}</span>
           </div>
         `
         : "";
@@ -1024,12 +1051,12 @@ function renderClassEntries(entries = [createEmptyRegistrationEntry()]) {
           <div class="field">
             <div class="field-heading">
               <span>หมายเลขรถของรุ่นนี้</span>
-              <small>ระบบจะแจ้งเตือนถ้าเลขรถซ้ำกับทีมอื่น แต่ยังบันทึกได้</small>
+              <small>เลขรถของรุ่นนี้ห้ามซ้ำกับทีมอื่นที่ลงสมัครรุ่นเดียวกัน</small>
             </div>
             <div class="bike-grid class-entry-bike-grid">
               ${renderClassEntryBikeInputs(entry, index)}
             </div>
-            ${warningMarkup}
+            ${conflictMarkup}
           </div>
         </section>
       `;
@@ -4082,6 +4109,16 @@ async function handleSubmit(event) {
     return;
   }
 
+  const duplicateBikeNumberConflicts = getDuplicateBikeNumberConflicts(payload.entries);
+  const allConflicts = duplicateBikeNumberConflicts.flat();
+  if (allConflicts.length > 0) {
+    setStatus(
+      `ไม่สามารถบันทึกได้ เพราะเลขรถซ้ำกับทีมอื่นในรุ่นเดียวกัน: ${formatBikeNumberConflicts(allConflicts, 3, { includeClassName: true })}`,
+      "danger",
+    );
+    return;
+  }
+
   const path = state.editingId
     ? `/api/registrations/${state.editingId}`
     : "/api/registrations";
@@ -4099,14 +4136,6 @@ async function handleSubmit(event) {
       ? "อัปเดตข้อมูลผู้สมัครเรียบร้อยแล้ว"
       : "บันทึกข้อมูลผู้สมัครเรียบร้อยแล้ว";
     resetForm();
-    if (Array.isArray(result.bikeNumberWarnings) && result.bikeNumberWarnings.length > 0) {
-      setStatus(
-        `${message} | เตือนเลขรถซ้ำกับทีมอื่น: ${formatBikeNumberWarnings(result.bikeNumberWarnings, 3)}`,
-        "warning",
-      );
-      return;
-    }
-
     setStatus(message);
   } catch (error) {
     setStatus(error.message, "danger");

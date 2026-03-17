@@ -283,6 +283,10 @@ async function run() {
         },
       ],
     };
+    const alternativeClass = metaResult.body.classes.find((className) => {
+      return className !== createPayload.entries[0].raceClass;
+    });
+    assert.ok(alternativeClass, "expected at least two classes in the fixture");
 
     result = await requestJson(baseUrl, "/api/registrations", {
       method: "POST",
@@ -408,12 +412,29 @@ async function run() {
         ],
       }),
     });
+    assert.equal(result.response.status, 400);
+    assert.match(result.body.error, /หมายเลขรถซ้ำกับทีมอื่นในรุ่นเดียวกัน/);
+    assert.match(result.body.error, new RegExp(updatedBikeNumber));
+    assert.match(result.body.error, /Smoke Test Team/);
+
+    result = await requestJson(baseUrl, "/api/registrations", {
+      method: "POST",
+      body: JSON.stringify({
+        ...createPayload,
+        applicantName: "Duplicate Bike Number Other Class Team",
+        entries: [
+          {
+            raceClass: alternativeClass,
+            vehicleCount: 1,
+            bikeNumbers: [updatedBikeNumber],
+          },
+        ],
+      }),
+    });
     assert.equal(result.response.status, 201);
-    assert.equal(result.body.registration.applicantName, "Duplicate Bike Number Team");
+    assert.equal(result.body.registration.applicantName, "Duplicate Bike Number Other Class Team");
     assert.equal(result.body.registration.entries[0].bikeNumbers[0], updatedBikeNumber);
-    assert.ok(Array.isArray(result.body.bikeNumberWarnings));
-    assert.equal(result.body.bikeNumberWarnings[0].bikeNumber, updatedBikeNumber);
-    assert.ok(result.body.bikeNumberWarnings[0].applicantNames.includes(createPayload.applicantName));
+    assert.equal(result.body.registration.entries[0].raceClass, alternativeClass);
 
     result = await requestJson(baseUrl, "/api/registrations", {
       method: "POST",

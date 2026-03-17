@@ -14,5 +14,15 @@
     "header": "ระบบจัดการผู้สมัครหน้างาน",
     "logoPath": "/logo-bidmodplok.svg"
   },
-  "currentVenueId": "default"
+  "currentVenueId": "default",
+  "venueAvailability": {
+    "default": {
+      "lockedZones": [
+        "B"
+      ],
+      "openZones": [],
+      "lockedSlots": [],
+      "openSlots": []
+    }
+  }
 }

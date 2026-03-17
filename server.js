@@ -1043,24 +1043,59 @@ function validateRegistrationEntry(payload, classes, selectedClasses) {
   };
 }
 
-function getBikeNumberWarnings(entries, registrations, currentId = null) {
-  const requestedNumbers = new Map();
+function formatApplicantNames(applicantNames, maxItems = 2) {
+  if (!Array.isArray(applicantNames) || applicantNames.length === 0) {
+    return "";
+  }
+
+  const visibleApplicantNames = applicantNames.slice(0, maxItems);
+  const extraApplicantCount = Math.max(0, applicantNames.length - visibleApplicantNames.length);
+  return `${visibleApplicantNames.join(", ")}${extraApplicantCount > 0 ? ` และอีก ${extraApplicantCount} ทีม` : ""}`;
+}
+
+function formatBikeNumberConflicts(conflicts, maxItems = 3) {
+  if (!Array.isArray(conflicts) || conflicts.length === 0) {
+    return "";
+  }
+
+  const visibleConflicts = conflicts.slice(0, maxItems).map((conflict) => {
+    const applicantLabel = formatApplicantNames(conflict.applicantNames);
+    return applicantLabel
+      ? `${conflict.raceClass} เลข ${conflict.bikeNumber} (${applicantLabel})`
+      : `${conflict.raceClass} เลข ${conflict.bikeNumber}`;
+  });
+  const extraConflictCount = Math.max(0, conflicts.length - visibleConflicts.length);
+  return `${visibleConflicts.join(", ")}${extraConflictCount > 0 ? ` และอีก ${extraConflictCount} รายการ` : ""}`;
+}
+
+function getBikeNumberConflicts(entries, registrations, currentId = null) {
+  const requestedNumbersByClass = new Map();
   for (const entry of entries) {
+    const normalizedClassName = normalizeText(entry.raceClass);
+    if (!normalizedClassName) {
+      continue;
+    }
+
+    const requestedNumbers = requestedNumbersByClass.get(normalizedClassName) || new Map();
     for (const bikeNumber of entry.bikeNumbers || []) {
       const normalizedBikeNumber = normalizeText(bikeNumber);
       if (!normalizedBikeNumber || requestedNumbers.has(normalizedBikeNumber)) {
         continue;
       }
 
-      requestedNumbers.set(normalizedBikeNumber, sanitizeText(bikeNumber));
+      requestedNumbers.set(normalizedBikeNumber, {
+        raceClass: sanitizeText(entry.raceClass),
+        bikeNumber: sanitizeText(bikeNumber),
+      });
     }
+    requestedNumbersByClass.set(normalizedClassName, requestedNumbers);
   }
 
-  if (requestedNumbers.size === 0) {
+  if (requestedNumbersByClass.size === 0) {
     return [];
   }
 
-  const warningMap = new Map();
+  const conflictMap = new Map();
   for (const registration of registrations) {
     if (registration.id === currentId) {
       continue;
@@ -1068,25 +1103,39 @@ function getBikeNumberWarnings(entries, registrations, currentId = null) {
 
     const applicantName = sanitizeText(registration.applicantName) || "ทีมไม่ระบุชื่อ";
     for (const entry of registration.entries || []) {
+      const normalizedClassName = normalizeText(entry.raceClass);
+      const requestedNumbers = requestedNumbersByClass.get(normalizedClassName);
+      if (!requestedNumbers) {
+        continue;
+      }
+
       for (const bikeNumber of entry.bikeNumbers || []) {
         const normalizedBikeNumber = normalizeText(bikeNumber);
         if (!requestedNumbers.has(normalizedBikeNumber)) {
           continue;
         }
 
-        const currentWarning = warningMap.get(normalizedBikeNumber) || {
-          bikeNumber: requestedNumbers.get(normalizedBikeNumber) || sanitizeText(bikeNumber),
+        const requestedEntry = requestedNumbers.get(normalizedBikeNumber);
+        const conflictKey = `${normalizedClassName}::${normalizedBikeNumber}`;
+        const currentConflict = conflictMap.get(conflictKey) || {
+          raceClass: requestedEntry?.raceClass || sanitizeText(entry.raceClass),
+          bikeNumber: requestedEntry?.bikeNumber || sanitizeText(bikeNumber),
           applicantNames: [],
         };
-        if (!currentWarning.applicantNames.includes(applicantName)) {
-          currentWarning.applicantNames.push(applicantName);
+        if (!currentConflict.applicantNames.includes(applicantName)) {
+          currentConflict.applicantNames.push(applicantName);
         }
-        warningMap.set(normalizedBikeNumber, currentWarning);
+        conflictMap.set(conflictKey, currentConflict);
       }
     }
   }
 
-  return [...warningMap.values()].sort((left, right) => {
+  return [...conflictMap.values()].sort((left, right) => {
+    const classComparison = left.raceClass.localeCompare(right.raceClass, "th");
+    if (classComparison !== 0) {
+      return classComparison;
+    }
+
     return left.bikeNumber.localeCompare(right.bikeNumber, "th");
   });
 }
@@ -1117,6 +1166,12 @@ function validateRegistration(payload, classes, registrations, currentId = null)
   const entries = rawEntries.map((entry) => {
     return validateRegistrationEntry(entry, classes, selectedClasses);
   });
+  const bikeNumberConflicts = getBikeNumberConflicts(entries, registrations, currentId);
+  if (bikeNumberConflicts.length > 0) {
+    throw new Error(
+      `หมายเลขรถซ้ำกับทีมอื่นในรุ่นเดียวกัน: ${formatBikeNumberConflicts(bikeNumberConflicts)}`,
+    );
+  }
 
   return {
     applicantName,
@@ -1463,10 +1518,6 @@ async function handleApi(request, response, url) {
 
     try {
       const registration = validateRegistration(body, classes, registrations);
-      const bikeNumberWarnings = getBikeNumberWarnings(
-        registration.entries,
-        registrations,
-      );
       const now = new Date().toISOString();
       const createdRegistration = {
         id: randomUUID(),
@@ -1477,10 +1528,7 @@ async function handleApi(request, response, url) {
 
       registrations.push(createdRegistration);
       await saveRegistrations(registrations);
-      return sendJson(response, 201, {
-        registration: createdRegistration,
-        bikeNumberWarnings,
-      });
+      return sendJson(response, 201, { registration: createdRegistration });
     } catch (error) {
       return sendError(response, 400, error.message);
     }
@@ -1530,11 +1578,6 @@ async function handleApi(request, response, url) {
         registrations,
         registrationId,
       );
-      const bikeNumberWarnings = getBikeNumberWarnings(
-        registration.entries,
-        registrations,
-        registrationId,
-      );
       const updatedRegistration = {
         ...registrations[index],
         ...registration,
@@ -1543,10 +1586,7 @@ async function handleApi(request, response, url) {
 
       registrations[index] = updatedRegistration;
       await saveRegistrations(registrations);
-      return sendJson(response, 200, {
-        registration: updatedRegistration,
-        bikeNumberWarnings,
-      });
+      return sendJson(response, 200, { registration: updatedRegistration });
     } catch (error) {
       return sendError(response, 400, error.message);
     }
